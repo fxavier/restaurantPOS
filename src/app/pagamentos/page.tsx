@@ -150,7 +150,7 @@ export default function PaginaPagamentos() {
 
   const carregarComandas = async () => {
     try {
-      const response = await fetch(`/api/comandas?restauranteId=${RESTAURANT_ID}&status=pronta&status=finalizada&limit=100`);
+      const response = await fetch(`/api/comandas?restauranteId=${RESTAURANT_ID}&status=pronta&status=entregue&limit=100`);
       
       if (!response.ok) {
         throw new Error('Erro ao carregar comandas');

@@ -76,6 +76,8 @@ export function UserProvider({ children }: UserProviderProps) {
         id: 'user-1',
         nome: 'Administrador',
         email: email,
+        username: email.split('@')[0],
+        senha: '',
         telefone: '+258 84 123 4567',
         perfil: 'admin' as PerfilUsuario,
         permissoes: [

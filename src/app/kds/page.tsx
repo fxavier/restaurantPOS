@@ -42,11 +42,11 @@ const useDragAndDrop = (onStatusChange: (comandaId: string, itemId: string, newS
     setDraggedItem(itemData);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/html', e.currentTarget.outerHTML);
-    e.currentTarget.style.opacity = '0.5';
+    (e.currentTarget as HTMLElement).style.opacity = '0.5';
   };
 
   const handleDragEnd = (e: React.DragEvent) => {
-    e.currentTarget.style.opacity = '1';
+    (e.currentTarget as HTMLElement).style.opacity = '1';
     setDraggedItem(null);
   };
 
@@ -219,13 +219,9 @@ export default function PaginaKDS() {
             }))
           };
         })
-        .sort((a, b) => {
-          // Ordenar por prioridade e depois por tempo
-          const prioridadeOrder = { urgente: 4, alta: 3, media: 2, baixa: 1 };
-          if (prioridadeOrder[a.prioridade] !== prioridadeOrder[b.prioridade]) {
-            return prioridadeOrder[b.prioridade] - prioridadeOrder[a.prioridade];
-          }
-          return new Date(a.criadaEm).getTime() - new Date(b.criadaEm).getTime();
+        .sort((a: ItemKDS, b: ItemKDS) => {
+          // Ordenar por tempo de criação (mais antigos primeiro)
+          return new Date(a.comanda.criadaEm).getTime() - new Date(b.comanda.criadaEm).getTime();
         });
 
       setComandas(comandasKDS);

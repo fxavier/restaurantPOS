@@ -46,6 +46,8 @@ export interface Usuario {
   id: string;
   nome: string;
   email: string;
+  username: string;
+  senha?: string; // Optional for security (not always included in responses)
   telefone?: string;
   perfil: PerfilUsuario;
   permissoes: string[];

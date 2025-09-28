@@ -69,6 +69,8 @@ model Usuario {
   id            String     @id @default(cuid())
   nome          String
   email         String     @unique
+  username      String     @unique
+  senha         String
   telefone      String?
   perfil        PerfilUsuario
   permissoes    String[]

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,23 +15,18 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Bell, User, LogOut, Settings, Clock } from 'lucide-react';
-import { ArmazenamentoLocal } from '@/lib/armazenamento-local';
-import { Usuario } from '@/types/sistema-restaurante';
+import { Bell, User, LogOut, Settings, Clock, UserPlus } from 'lucide-react';
+import Link from 'next/link';
 
 interface CabecalhoPrincipalProps {
   titulo?: string;
 }
 
 export default function CabecalhoPrincipal({ titulo }: CabecalhoPrincipalProps) {
-  const [usuarioLogado, setUsuarioLogado] = useState<Usuario | null>(null);
+  const { data: session } = useSession();
   const [horaAtual, setHoraAtual] = useState<string>('');
 
   useEffect(() => {
-    // Carregar usuário logado
-    const usuario = ArmazenamentoLocal.obterUsuarioLogado();
-    setUsuarioLogado(usuario);
-
     // Atualizar hora a cada segundo
     const atualizarHora = () => {
       const agora = new Date();
@@ -82,9 +78,8 @@ export default function CabecalhoPrincipal({ titulo }: CabecalhoPrincipalProps) 
     return perfis[perfil] || perfil;
   };
 
-  const handleLogout = () => {
-    ArmazenamentoLocal.logout();
-    window.location.href = '/login';
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/auth/signin' });
   };
 
   return (
@@ -119,14 +114,14 @@ export default function CabecalhoPrincipal({ titulo }: CabecalhoPrincipalProps) 
         <ThemeToggle />
 
         {/* Menu do usuário */}
-        {usuarioLogado && (
+        {session?.user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="" alt={usuarioLogado.nome} />
-                  <AvatarFallback className={obterCorPerfil(usuarioLogado.perfil)}>
-                    {obterIniciais(usuarioLogado.nome)}
+                  <AvatarImage src="" alt={session.user.name || ''} />
+                  <AvatarFallback className={obterCorPerfil(session.user.role)}>
+                    {obterIniciais(session.user.name || '')}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -135,16 +130,16 @@ export default function CabecalhoPrincipal({ titulo }: CabecalhoPrincipalProps) 
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none">
-                    {usuarioLogado.nome}
+                    {session.user.name}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    {usuarioLogado.email}
+                    {session.user.email}
                   </p>
                   <Badge
                     variant="secondary"
                     className="w-fit text-xs"
                   >
-                    {formatarPerfil(usuarioLogado.perfil)}
+                    {formatarPerfil(session.user.role)}
                   </Badge>
                 </div>
               </DropdownMenuLabel>
@@ -153,6 +148,14 @@ export default function CabecalhoPrincipal({ titulo }: CabecalhoPrincipalProps) 
                 <User className="mr-2 h-4 w-4" />
                 <span>Perfil</span>
               </DropdownMenuItem>
+              {session.user.role === 'admin' && (
+                <DropdownMenuItem asChild>
+                  <Link href="/admin/users">
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    <span>Gerenciar Usuários</span>
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem>
                 <Settings className="mr-2 h-4 w-4" />
                 <span>Configurações</span>

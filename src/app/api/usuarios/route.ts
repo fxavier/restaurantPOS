@@ -105,6 +105,8 @@ export async function POST(request: NextRequest) {
       data: {
         nome: body.nome,
         email: body.email,
+        username: body.username || body.email.split('@')[0],
+        senha: body.senha || 'senha-padrao-123',
         telefone: body.telefone,
         perfil: body.perfil,
         permissoes: body.permissoes || [],

@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as SonnerToaster } from '@/components/ui/sonner';
 import GlobalClientEffects from '@/components/GlobalClientEffects';
+import AuthSessionProvider from '@/components/providers/session-provider';
 
 import './globals.css';
 
@@ -42,14 +43,16 @@ export default function RootLayout({
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 			>
-				<ThemeProvider
-					attribute='class'
-					defaultTheme='system'
-					enableSystem
-					disableTransitionOnChange
-				>
-					{content}
-				</ThemeProvider>
+				<AuthSessionProvider>
+					<ThemeProvider
+						attribute='class'
+						defaultTheme='system'
+						enableSystem
+						disableTransitionOnChange
+					>
+						{content}
+					</ThemeProvider>
+				</AuthSessionProvider>
 			</body>
 		</html>
 	);

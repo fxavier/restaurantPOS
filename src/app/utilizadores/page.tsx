@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import LayoutPrincipal from '@/components/layout/layout-principal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import {
   Users,
@@ -32,47 +33,33 @@ import {
   ShoppingCart,
   Package
 } from 'lucide-react';
-import { ArmazenamentoLocal } from '@/lib/armazenamento-local';
 import { Usuario, PerfilUsuario } from '@/types/sistema-restaurante';
 
-const PERMISSOES_DISPONIVEIS = [
-  { id: 'dashboard', nome: 'Dashboard', descricao: 'Visualizar painel principal' },
-  { id: 'pos', nome: 'POS - Vendas', descricao: 'Acessar sistema de vendas' },
-  { id: 'kds', nome: 'Kitchen Display', descricao: 'Visualizar pedidos na cozinha' },
-  { id: 'mesas', nome: 'Mesas', descricao: 'Gerenciar mesas' },
-  { id: 'produtos', nome: 'Produtos', descricao: 'Gerenciar produtos' },
-  { id: 'menus', nome: 'Menus', descricao: 'Gerenciar menus' },
-  { id: 'comandas', nome: 'Comandas', descricao: 'Gerenciar comandas' },
-  { id: 'estoque', nome: 'Estoque', descricao: 'Gerenciar estoque' },
-  { id: 'fornecedores', nome: 'Fornecedores', descricao: 'Gerenciar fornecedores' },
-  { id: 'compras', nome: 'Compras', descricao: 'Gerenciar compras' },
-  { id: 'relatorios', nome: 'Relatórios', descricao: 'Visualizar relatórios' },
-  { id: 'turnos', nome: 'Turnos', descricao: 'Gerenciar turnos' },
-  { id: 'pagamentos', nome: 'Pagamentos', descricao: 'Gerenciar pagamentos' },
-  { id: 'utilizadores', nome: 'Utilizadores', descricao: 'Gerenciar utilizadores' },
-  { id: 'restaurante', nome: 'Restaurante', descricao: 'Configurações do restaurante' },
-  { id: 'entregas', nome: 'Entregas', descricao: 'Gerenciar entregas' },
-  { id: 'auditoria', nome: 'Auditoria', descricao: 'Visualizar logs de auditoria' },
-  { id: 'backup', nome: 'Backup', descricao: 'Gerenciar backups' },
-  { id: 'configuracoes', nome: 'Configurações', descricao: 'Configurações do sistema' }
-];
+interface UserFormData {
+  nome: string;
+  email: string;
+  username: string;
+  senha?: string;
+  telefone: string;
+  perfil: PerfilUsuario;
+  ativo: boolean;
+}
 
-const PERFIS_PADRAO: Record<PerfilUsuario, string[]> = {
-  admin: PERMISSOES_DISPONIVEIS.map(p => p.id),
-  gestor: [
-    'dashboard', 'pos', 'kds', 'mesas', 'produtos', 'menus', 'comandas',
-    'estoque', 'fornecedores', 'compras', 'relatorios', 'turnos', 'pagamentos',
-    'entregas', 'restaurante', 'configuracoes'
-  ],
-  caixa: ['dashboard', 'pos', 'comandas', 'pagamentos', 'turnos'],
-  garcom: ['dashboard', 'pos', 'mesas', 'comandas'],
-  cozinha: ['dashboard', 'kds', 'produtos'],
-  estoquista: ['dashboard', 'estoque', 'produtos', 'fornecedores', 'compras']
+const initialFormData: UserFormData = {
+  nome: '',
+  email: '',
+  username: '',
+  senha: '',
+  telefone: '',
+  perfil: 'garcom',
+  ativo: true,
 };
 
 export default function PaginaUtilizadores() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [utilizadores, setUtilizadores] = useState<Usuario[]>([]);
-  const [carregando, setCarregando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
   const [termoBusca, setTermoBusca] = useState('');
   const [filtroPerfil, setFiltroPerfil] = useState<PerfilUsuario | 'todos'>('todos');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'ativo' | 'inativo'>('todos');
@@ -80,31 +67,42 @@ export default function PaginaUtilizadores() {
   // Modal de utilizador
   const [modalAberto, setModalAberto] = useState(false);
   const [utilizadorEdicao, setUtilizadorEdicao] = useState<Usuario | null>(null);
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
-  const [perfil, setPerfil] = useState<PerfilUsuario>('garcom');
-  const [permissoes, setPermissoes] = useState<string[]>([]);
-  const [ativo, setAtivo] = useState(true);
-  const [senha, setSenha] = useState('');
-  const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [formData, setFormData] = useState<UserFormData>(initialFormData);
+  const [showPassword, setShowPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Redirect if not admin
+  useEffect(() => {
+    if (status === 'loading') return;
+    if (!session?.user || session.user.role !== 'admin') {
+      router.push('/');
+      return;
+    }
+  }, [session, status, router]);
 
   useEffect(() => {
-    carregarUtilizadores();
-  }, []);
+    if (session?.user?.role === 'admin') {
+      carregarUtilizadores();
+    }
+  }, [session]);
 
-  useEffect(() => {
-    // Atualizar permissões quando o perfil mudar
-    setPermissoes(PERFIS_PADRAO[perfil] || []);
-  }, [perfil]);
-
-  const carregarUtilizadores = () => {
-    setCarregando(true);
-    
+  const carregarUtilizadores = async () => {
     try {
-      const utilizadoresData = ArmazenamentoLocal.obterUsuarios();
-      setUtilizadores(utilizadoresData);
+      setCarregando(true);
+      const response = await fetch('/api/admin/users');
+      
+      if (!response.ok) {
+        throw new Error('Erro ao carregar utilizadores');
+      }
+
+      const result = await response.json();
+      console.log('API Response:', result); // Debug log
+      // API returns {success: true, data: [...]} format
+      const utilizadoresArray = Array.isArray(result?.data) ? result.data : [];
+      console.log('Users Array:', utilizadoresArray); // Debug log
+      setUtilizadores(utilizadoresArray);
     } catch (error) {
+      console.error('Erro ao carregar utilizadores:', error);
       toast.error('Erro ao carregar utilizadores');
     } finally {
       setCarregando(false);
@@ -113,147 +111,120 @@ export default function PaginaUtilizadores() {
 
   const abrirModalNovoUtilizador = () => {
     setUtilizadorEdicao(null);
-    limparFormulario();
+    setFormData(initialFormData);
     setModalAberto(true);
   };
 
   const abrirModalEdicao = (utilizador: Usuario) => {
     setUtilizadorEdicao(utilizador);
-    setNome(utilizador.nome);
-    setEmail(utilizador.email);
-    setTelefone(utilizador.telefone || '');
-    setPerfil(utilizador.perfil);
-    setPermissoes(utilizador.permissoes);
-    setAtivo(utilizador.ativo);
-    setSenha('');
-    setConfirmarSenha('');
+    setFormData({
+      nome: utilizador.nome,
+      email: utilizador.email,
+      username: utilizador.username,
+      senha: '', // Don't prefill password
+      telefone: utilizador.telefone || '',
+      perfil: utilizador.perfil,
+      ativo: utilizador.ativo,
+    });
     setModalAberto(true);
   };
 
-  const limparFormulario = () => {
-    setNome('');
-    setEmail('');
-    setTelefone('');
-    setPerfil('garcom');
-    setPermissoes(PERFIS_PADRAO.garcom);
-    setAtivo(true);
-    setSenha('');
-    setConfirmarSenha('');
+  const salvarUtilizador = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const url = utilizadorEdicao ? `/api/admin/users/${utilizadorEdicao.id}` : '/api/admin/users';
+      const method = utilizadorEdicao ? 'PUT' : 'POST';
+      
+      // Don't send empty password for updates
+      const submitData = { ...formData };
+      if (utilizadorEdicao && !submitData.senha) {
+        delete submitData.senha;
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao salvar utilizador');
+      }
+
+      toast.success(utilizadorEdicao ? 'Utilizador atualizado com sucesso' : 'Utilizador criado com sucesso');
+      setModalAberto(false);
+      setUtilizadorEdicao(null);
+      setFormData(initialFormData);
+      await carregarUtilizadores();
+    } catch (error) {
+      console.error('Erro ao salvar utilizador:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar utilizador');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const salvarUtilizador = async () => {
-    // Validações
-    if (!nome.trim() || !email.trim()) {
-      toast.error('Nome e email são obrigatórios');
-      return;
-    }
-
-    if (!utilizadorEdicao && !senha) {
-      toast.error('Senha é obrigatória para novos utilizadores');
-      return;
-    }
-
-    if (senha && senha !== confirmarSenha) {
-      toast.error('Senhas não coincidem');
-      return;
-    }
-
-    if (permissoes.length === 0) {
-      toast.error('Selecione pelo menos uma permissão');
-      return;
-    }
-
-    // Verificar email duplicado
-    const utilizadoresExistentes = ArmazenamentoLocal.obterUsuarios();
-    const emailExiste = utilizadoresExistentes.some(u => 
-      u.email === email && u.id !== utilizadorEdicao?.id
-    );
-    
-    if (emailExiste) {
-      toast.error('Email já está em uso');
+  const alternarStatusUtilizador = async (utilizador: Usuario) => {
+    if (utilizador.id === session?.user?.id && !utilizador.ativo) {
+      toast.error('Você não pode desativar seu próprio utilizador');
       return;
     }
 
     try {
-      const restaurantes = ArmazenamentoLocal.obterRestaurantes();
-      const restauranteId = restaurantes[0]?.id || 'default';
+      const response = await fetch(`/api/admin/users/${utilizador.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ativo: !utilizador.ativo }),
+      });
 
-      if (utilizadorEdicao) {
-        // Atualizar utilizador existente
-        const dadosAtualizacao: Partial<Usuario> = {
-          nome: nome.trim(),
-          email: email.trim(),
-          telefone: telefone.trim() || undefined,
-          perfil,
-          permissoes,
-          ativo,
-          atualizadoEm: new Date().toISOString()
-        };
-
-        const utilizadoresAtuais = ArmazenamentoLocal.obterUsuarios();
-        const index = utilizadoresAtuais.findIndex(u => u.id === utilizadorEdicao.id);
-        
-        if (index !== -1) {
-          utilizadoresAtuais[index] = { ...utilizadoresAtuais[index], ...dadosAtualizacao };
-          ArmazenamentoLocal.salvarDados('usuarios', utilizadoresAtuais);
-        }
-
-        toast.success('Utilizador atualizado com sucesso!');
-      } else {
-        // Criar novo utilizador
-        const novoUtilizador = {
-          nome: nome.trim(),
-          email: email.trim(),
-          telefone: telefone.trim() || undefined,
-          perfil,
-          permissoes,
-          restauranteId,
-          ativo
-        };
-
-        ArmazenamentoLocal.salvarUsuario(novoUtilizador);
-        toast.success('Utilizador criado com sucesso!');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao alterar status do utilizador');
       }
 
-      setModalAberto(false);
-      carregarUtilizadores();
+      toast.success(`Utilizador ${utilizador.ativo ? 'desativado' : 'ativado'} com sucesso`);
+      await carregarUtilizadores();
     } catch (error) {
-      toast.error('Erro ao salvar utilizador');
+      console.error('Erro ao alterar status:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao alterar status do utilizador');
     }
   };
 
-  const alternarStatusUtilizador = (utilizadorId: string, novoStatus: boolean) => {
-    const utilizadoresAtuais = ArmazenamentoLocal.obterUsuarios();
-    const index = utilizadoresAtuais.findIndex(u => u.id === utilizadorId);
-    
-    if (index !== -1) {
-      utilizadoresAtuais[index].ativo = novoStatus;
-      utilizadoresAtuais[index].atualizadoEm = new Date().toISOString();
-      ArmazenamentoLocal.salvarDados('usuarios', utilizadoresAtuais);
-      
-      toast.success(`Utilizador ${novoStatus ? 'ativado' : 'desativado'} com sucesso!`);
-      carregarUtilizadores();
+  const excluirUtilizador = async (utilizador: Usuario) => {
+    if (utilizador.id === session?.user?.id) {
+      toast.error('Você não pode excluir seu próprio utilizador');
+      return;
+    }
+
+    if (!confirm(`Tem certeza que deseja desativar o utilizador ${utilizador.nome}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users/${utilizador.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao desativar utilizador');
+      }
+
+      toast.success('Utilizador desativado com sucesso');
+      await carregarUtilizadores();
+    } catch (error) {
+      console.error('Erro ao desativar utilizador:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao desativar utilizador');
     }
   };
 
-  const excluirUtilizador = (utilizadorId: string) => {
-    if (confirm('Tem certeza que deseja excluir este utilizador? Esta ação não pode ser desfeita.')) {
-      const utilizadoresAtuais = ArmazenamentoLocal.obterUsuarios();
-      const utilizadoresAtualizados = utilizadoresAtuais.filter(u => u.id !== utilizadorId);
-      
-      ArmazenamentoLocal.salvarDados('usuarios', utilizadoresAtualizados);
-      toast.success('Utilizador excluído com sucesso!');
-      carregarUtilizadores();
-    }
-  };
-
-  const alternarPermissao = (permissaoId: string) => {
-    if (permissoes.includes(permissaoId)) {
-      setPermissoes(permissoes.filter(p => p !== permissaoId));
-    } else {
-      setPermissoes([...permissoes, permissaoId]);
-    }
-  };
 
   const obterIconePerfil = (perfilUsuario: PerfilUsuario) => {
     switch (perfilUsuario) {
@@ -287,7 +258,7 @@ export default function PaginaUtilizadores() {
   };
 
   // Filtrar utilizadores
-  const utilizadoresFiltrados = utilizadores.filter(utilizador => {
+  const utilizadoresFiltrados = (utilizadores || []).filter(utilizador => {
     const matchBusca = !termoBusca || 
       utilizador.nome.toLowerCase().includes(termoBusca.toLowerCase()) ||
       utilizador.email.toLowerCase().includes(termoBusca.toLowerCase());
@@ -300,10 +271,49 @@ export default function PaginaUtilizadores() {
     return matchBusca && matchPerfil && matchStatus;
   });
 
+  // Profile helpers
+  const getProfileColor = (perfil: PerfilUsuario) => {
+    const colors = {
+      admin: 'bg-red-500',
+      gestor: 'bg-blue-500', 
+      caixa: 'bg-green-500',
+      garcom: 'bg-yellow-500',
+      cozinha: 'bg-orange-500',
+      estoquista: 'bg-purple-500',
+    };
+    return colors[perfil] || 'bg-gray-500';
+  };
+
+  const getProfileLabel = (perfil: PerfilUsuario) => {
+    const labels = {
+      admin: 'Administrador',
+      gestor: 'Gestor',
+      caixa: 'Caixa',
+      garcom: 'Garçom',
+      cozinha: 'Cozinha',
+      estoquista: 'Estoquista',
+    };
+    return labels[perfil] || perfil;
+  };
+
   // Estatísticas
-  const totalUtilizadores = utilizadores.length;
-  const utilizadoresAtivos = utilizadores.filter(u => u.ativo).length;
-  const utilizadoresInativos = utilizadores.filter(u => !u.ativo).length;
+  const totalUtilizadores = (utilizadores || []).length;
+  const utilizadoresAtivos = (utilizadores || []).filter(u => u.ativo).length;
+  const utilizadoresInativos = (utilizadores || []).filter(u => !u.ativo).length;
+
+  if (status === 'loading') {
+    return (
+      <LayoutPrincipal titulo="Gestão de Utilizadores">
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </LayoutPrincipal>
+    );
+  }
+
+  if (!session?.user || session.user.role !== 'admin') {
+    return null; // Will redirect
+  }
 
   return (
     <LayoutPrincipal titulo="Gestão de Utilizadores">
@@ -447,15 +457,21 @@ export default function PaginaUtilizadores() {
                       </TableCell>
                       <TableCell>{utilizador.email}</TableCell>
                       <TableCell>
-                        <div className="flex items-center">
-                          {obterIconePerfil(utilizador.perfil)}
-                          <span className="ml-2">{obterNomePerfil(utilizador.perfil)}</span>
-                        </div>
+                        <Badge className={`${getProfileColor(utilizador.perfil)} text-white`}>
+                          {getProfileLabel(utilizador.perfil)}
+                        </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={utilizador.ativo ? 'default' : 'secondary'}>
-                          {utilizador.ativo ? 'Ativo' : 'Inativo'}
-                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            checked={utilizador.ativo}
+                            onCheckedChange={() => alternarStatusUtilizador(utilizador)}
+                            disabled={utilizador.id === session?.user?.id}
+                          />
+                          <span className={utilizador.ativo ? 'text-green-600' : 'text-red-600'}>
+                            {utilizador.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         {utilizador.ultimoLogin 
@@ -474,15 +490,9 @@ export default function PaginaUtilizadores() {
                           </Button>
                           <Button
                             size="sm"
-                            variant="outline"
-                            onClick={() => alternarStatusUtilizador(utilizador.id, !utilizador.ativo)}
-                          >
-                            {utilizador.ativo ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </Button>
-                          <Button
-                            size="sm"
                             variant="destructive"
-                            onClick={() => excluirUtilizador(utilizador.id)}
+                            onClick={() => excluirUtilizador(utilizador)}
+                            disabled={utilizador.id === session?.user?.id}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -504,131 +514,107 @@ export default function PaginaUtilizadores() {
                 {utilizadorEdicao ? 'Editar Utilizador' : 'Novo Utilizador'}
               </DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="nome">Nome *</Label>
+            
+            <form onSubmit={salvarUtilizador} className="space-y-4">
+              <div>
+                <Label htmlFor="nome">Nome *</Label>
+                <Input
+                  id="nome"
+                  value={formData.nome}
+                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="username">Username *</Label>
+                <Input
+                  id="username"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="senha">
+                  Senha {utilizadorEdicao ? '(deixe vazio para manter atual)' : '*'}
+                </Label>
+                <div className="relative">
                   <Input
-                    id="nome"
-                    value={nome}
-                    onChange={(e) => setNome(e.target.value)}
-                    placeholder="Nome completo"
+                    id="senha"
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.senha}
+                    onChange={(e) => setFormData({ ...formData, senha: e.target.value })}
+                    required={!utilizadorEdicao}
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                 </div>
+              </div>
 
-                <div>
-                  <Label htmlFor="email">Email *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@exemplo.com"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="telefone">Telefone</Label>
+                <Input
+                  id="telefone"
+                  value={formData.telefone}
+                  onChange={(e) => setFormData({ ...formData, telefone: e.target.value })}
+                />
+              </div>
 
-                <div>
-                  <Label htmlFor="telefone">Telefone</Label>
-                  <Input
-                    id="telefone"
-                    value={telefone}
-                    onChange={(e) => setTelefone(e.target.value)}
-                    placeholder="+351 912 345 678"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="perfil">Perfil *</Label>
-                  <Select value={perfil} onValueChange={(value: PerfilUsuario) => setPerfil(value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="gestor">Gestor</SelectItem>
-                      <SelectItem value="caixa">Caixa</SelectItem>
-                      <SelectItem value="garcom">Garçom</SelectItem>
-                      <SelectItem value="cozinha">Cozinha</SelectItem>
-                      <SelectItem value="estoquista">Estoquista</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {!utilizadorEdicao && (
-                  <>
-                    <div>
-                      <Label htmlFor="senha">Senha *</Label>
-                      <Input
-                        id="senha"
-                        type="password"
-                        value={senha}
-                        onChange={(e) => setSenha(e.target.value)}
-                        placeholder="Senha"
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="confirmarSenha">Confirmar Senha *</Label>
-                      <Input
-                        id="confirmarSenha"
-                        type="password"
-                        value={confirmarSenha}
-                        onChange={(e) => setConfirmarSenha(e.target.value)}
-                        placeholder="Confirmar senha"
-                      />
-                    </div>
-                  </>
-                )}
+              <div>
+                <Label htmlFor="perfil">Perfil *</Label>
+                <Select value={formData.perfil} onValueChange={(value: PerfilUsuario) => setFormData({ ...formData, perfil: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="gestor">Gestor</SelectItem>
+                    <SelectItem value="caixa">Caixa</SelectItem>
+                    <SelectItem value="garcom">Garçom</SelectItem>
+                    <SelectItem value="cozinha">Cozinha</SelectItem>
+                    <SelectItem value="estoquista">Estoquista</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex items-center space-x-2">
                 <Switch
                   id="ativo"
-                  checked={ativo}
-                  onCheckedChange={setAtivo}
+                  checked={formData.ativo}
+                  onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
                 />
                 <Label htmlFor="ativo">Utilizador ativo</Label>
               </div>
 
-              {/* Permissões */}
-              <div>
-                <Label className="text-base font-medium">Permissões</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Selecione as funcionalidades que este utilizador pode acessar
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-60 overflow-y-auto border rounded-lg p-3">
-                  {PERMISSOES_DISPONIVEIS.map((permissao) => (
-                    <div key={permissao.id} className="flex items-start space-x-2">
-                      <Checkbox
-                        id={permissao.id}
-                        checked={permissoes.includes(permissao.id)}
-                        onCheckedChange={() => alternarPermissao(permissao.id)}
-                      />
-                      <div className="grid gap-1.5 leading-none">
-                        <Label
-                          htmlFor={permissao.id}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          {permissao.nome}
-                        </Label>
-                        <p className="text-xs text-muted-foreground">
-                          {permissao.descricao}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setModalAberto(false)}>
+                <Button type="button" variant="outline" onClick={() => setModalAberto(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={salvarUtilizador}>
-                  {utilizadorEdicao ? 'Atualizar' : 'Criar'} Utilizador
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Salvando...' : utilizadorEdicao ? 'Atualizar' : 'Criar'}
                 </Button>
               </div>
-            </div>
+            </form>
           </DialogContent>
         </Dialog>
       </div>

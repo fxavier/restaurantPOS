@@ -467,7 +467,7 @@ export default function PaginaTurnos() {
 									</TableCell>
 									<TableCell>MT {turno.valorAbertura.toFixed(2)}</TableCell>
 									<TableCell>
-										{turno.valorFechamento !== null ? 
+										{turno.valorFechamento !== null && turno.valorFechamento !== undefined ? 
 											`MT ${turno.valorFechamento.toFixed(2)}` : 
 											'-'
 										}
@@ -691,7 +691,7 @@ export default function PaginaTurnos() {
 											{turnoSelecionado.valorFechamento !== null && (
 												<div className='flex justify-between'>
 													<span>Fechamento:</span>
-													<span>MT {turnoSelecionado.valorFechamento.toFixed(2)}</span>
+													<span>MT {turnoSelecionado.valorFechamento?.toFixed(2) || '-'}</span>
 												</div>
 											)}
 											<div className='flex justify-between'>
@@ -701,8 +701,8 @@ export default function PaginaTurnos() {
 											{turnoSelecionado.diferencaCaixa !== null && (
 												<div className='flex justify-between'>
 													<span>Diferença:</span>
-													<span className={`font-bold ${turnoSelecionado.diferencaCaixa >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-														MT {turnoSelecionado.diferencaCaixa.toFixed(2)}
+													<span className={`font-bold ${(turnoSelecionado.diferencaCaixa || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+														MT {(turnoSelecionado.diferencaCaixa || 0).toFixed(2)}
 													</span>
 												</div>
 											)}

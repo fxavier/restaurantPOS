@@ -109,6 +109,8 @@ export async function POST(request: NextRequest) {
               id: 'sistema-admin',
               nome: 'Sistema Admin',
               email: 'admin@sistema.com',
+              username: 'sistema-admin',
+              senha: 'sistema-admin-senha',
               perfil: 'admin',
               ativo: true,
               restauranteId: body.restauranteId,
