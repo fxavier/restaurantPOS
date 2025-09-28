@@ -1,0 +1,598 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Restaurante {
+  id                  String   @id @default(cuid())
+  nome                String
+  endereco            String
+  telefone            String
+  email               String
+  nuit                String   @unique
+  inscricaoEstadual   String?
+  inscricaoMunicipal  String?
+  taxaServico         Float    @default(0.1)
+  moeda               String   @default("MZN")
+  fusoHorario         String   @default("Africa/Johannesburg")
+  criadoEm            DateTime @default(now())
+  atualizadoEm        DateTime @updatedAt
+
+  // Relacionamentos
+  usuarios            Usuario[]
+  mesas               Mesa[]
+  categorias          Categoria[]
+  produtos            Produto[]
+  menus               Menu[]
+  comandas            Comanda[]
+  fornecedores        Fornecedor[]
+  ordensCompra        OrdemCompra[]
+  entregas            Entrega[]
+  entregadores        Entregador[]
+  logsAuditoria       LogAuditoria[]
+  turnosFechamento    TurnoFechamento[]
+  impostos            ImpostoConfig[]
+  horariosFuncionamento HorarioFuncionamento[]
+
+  @@map("restaurantes")
+}
+
+model ImpostoConfig {
+  id           String @id @default(cuid())
+  nome         String
+  percentual   Float
+  tipo         TipoImposto
+  ativo        Boolean @default(true)
+  restauranteId String
+  restaurante  Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@map("impostos_config")
+}
+
+model HorarioFuncionamento {
+  id           String @id @default(cuid())
+  diaSemana    Int // 0-6 (domingo-sábado)
+  abertura     String
+  fechamento   String
+  ativo        Boolean @default(true)
+  restauranteId String
+  restaurante  Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@map("horarios_funcionamento")
+}
+
+model Usuario {
+  id            String     @id @default(cuid())
+  nome          String
+  email         String     @unique
+  telefone      String?
+  perfil        PerfilUsuario
+  permissoes    String[]
+  ativo         Boolean    @default(true)
+  ultimoLogin   DateTime?
+  criadoEm      DateTime   @default(now())
+  atualizadoEm  DateTime   @updatedAt
+  restauranteId String
+  restaurante   Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  comandas      Comanda[]
+  ordensCompra  OrdemCompra[]
+  logsAuditoria LogAuditoria[]
+  turnosFechamento TurnoFechamento[]
+  movimentacoesEstoque MovimentacaoEstoque[]
+
+  @@map("usuarios")
+}
+
+model Mesa {
+  id           String     @id @default(cuid())
+  numero       String
+  capacidade   Int
+  area         String
+  qrCode       String?
+  status       StatusMesa @default(livre)
+  criadaEm     DateTime   @default(now())
+  restauranteId String
+  restaurante  Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  comandas     Comanda[]
+
+  @@unique([numero, restauranteId])
+  @@map("mesas")
+}
+
+model Categoria {
+  id           String    @id @default(cuid())
+  nome         String
+  descricao    String?
+  cor          String    @default("#3B82F6")
+  icone        String?
+  ordem        Int       @default(0)
+  ativa        Boolean   @default(true)
+  restauranteId String
+  restaurante  Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  produtos     Produto[]
+
+  @@map("categorias")
+}
+
+model UnidadeMedida {
+  id             String @id @default(cuid())
+  nome           String
+  sigla          String @unique
+  tipo           TipoUnidadeMedida
+  fatorConversao Float  @default(1.0)
+
+  // Relacionamentos
+  produtos       Produto[]
+  ingredientes   IngredienteProduto[]
+  movimentacoes  MovimentacaoEstoque[]
+  itensOrdemCompra ItemOrdemCompra[]
+
+  @@map("unidades_medida")
+}
+
+model Produto {
+  id                    String    @id @default(cuid())
+  sku                   String    @unique
+  nome                  String
+  descricao             String?
+  imagem                String?   // URL ou caminho da imagem do produto
+  preco                 Float
+  custo                 Float     @default(0)
+  tempoPreparoMinutos   Int?
+  disponivel            Boolean   @default(true)
+  controlaEstoque       Boolean   @default(false)
+  criadoEm              DateTime  @default(now())
+  atualizadoEm          DateTime  @updatedAt
+  categoriaId           String
+  categoria             Categoria @relation(fields: [categoriaId], references: [id])
+  unidadeMedidaId       String
+  unidadeMedida         UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
+  restauranteId         String
+  restaurante           Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  ingredientes          IngredienteProduto[]
+  ingredientesUsados    IngredienteProduto[] @relation("IngredienteProdutoIngrediente")
+  variacoes             VariacaoProduto[]
+  precosPorCanal        PrecoPorCanal[]
+  itensComanda          ItemComanda[]
+  menusProdutos         MenuProduto[]
+  movimentacoesEstoque  MovimentacaoEstoque[]
+  itensOrdemCompra      ItemOrdemCompra[]
+
+  @@map("produtos")
+}
+
+model IngredienteProduto {
+  id              String @id @default(cuid())
+  quantidade      Float
+  obrigatorio     Boolean @default(true)
+  produtoId       String
+  produto         Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  ingredienteId   String
+  ingrediente     Produto @relation("IngredienteProdutoIngrediente", fields: [ingredienteId], references: [id])
+  unidadeMedidaId String
+  unidadeMedida   UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
+
+  @@map("ingredientes_produto")
+}
+
+model VariacaoProduto {
+  id              String  @id @default(cuid())
+  nome            String
+  precoAdicional  Float   @default(0)
+  disponivel      Boolean @default(true)
+  produtoId       String
+  produto         Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  variacao_selecionadas VariacaoSelecionada[]
+
+  @@map("variacoes_produto")
+}
+
+model PrecoPorCanal {
+  id        String     @id @default(cuid())
+  canal     CanalVenda
+  preco     Float
+  produtoId String
+  produto   Produto    @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([produtoId, canal])
+  @@map("precos_por_canal")
+}
+
+model Menu {
+  id            String       @id @default(cuid())
+  nome          String
+  descricao     String?
+  tipo          TipoMenu
+  imagem        String?
+  ativo         Boolean      @default(true)
+  restauranteId String
+  restaurante   Restaurante  @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  produtos      MenuProduto[]
+
+  @@map("menus")
+}
+
+model MenuProduto {
+  id        String  @id @default(cuid())
+  menuId    String
+  menu      Menu    @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, produtoId])
+  @@map("menus_produtos")
+}
+
+model Comanda {
+  id              String        @id @default(cuid())
+  numero          String        @unique
+  clienteNome     String?
+  clienteTelefone String?
+  subtotal        Float         @default(0)
+  taxaServico     Float         @default(0)
+  impostos        Float         @default(0)
+  desconto        Float         @default(0)
+  total           Float         @default(0)
+  status          StatusComanda @default(aberta)
+  canal           CanalVenda    @default(balcao)
+  observacoes     String?
+  criadaEm        DateTime      @default(now())
+  atualizadaEm    DateTime      @updatedAt
+  finalizadaEm    DateTime?
+  mesaId          String?
+  mesa            Mesa?         @relation(fields: [mesaId], references: [id])
+  garcomId        String
+  garcom          Usuario       @relation(fields: [garcomId], references: [id])
+  restauranteId   String
+  restaurante     Restaurante   @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  itens           ItemComanda[]
+  pagamentos      Pagamento[]
+  entregas        Entrega[]
+
+  @@map("comandas")
+}
+
+model ItemComanda {
+  id                    String             @id @default(cuid())
+  produtoNome           String
+  quantidade            Int
+  precoUnitario         Float
+  precoTotal            Float
+  observacoes           String?
+  status                StatusItemComanda  @default(pendente)
+  tempoPreparoEstimado  Int?
+  iniciadoPreparoEm     DateTime?
+  prontoEm              DateTime?
+  comandaId             String
+  comanda               Comanda            @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  produtoId             String
+  produto               Produto            @relation(fields: [produtoId], references: [id])
+
+  // Relacionamentos
+  variacoes             VariacaoSelecionada[]
+
+  @@map("itens_comanda")
+}
+
+model VariacaoSelecionada {
+  id              String          @id @default(cuid())
+  nome            String
+  precoAdicional  Float
+  itemComandaId   String
+  itemComanda     ItemComanda     @relation(fields: [itemComandaId], references: [id], onDelete: Cascade)
+  variacaoId      String
+  variacao        VariacaoProduto @relation(fields: [variacaoId], references: [id])
+
+  @@map("variacoes_selecionadas")
+}
+
+model Pagamento {
+  id               String           @id @default(cuid())
+  valor            Float
+  metodoPagamento  MetodoPagamento
+  status           StatusPagamento  @default(pendente)
+  referencia       String?
+  processadoEm     DateTime?
+  criadoEm         DateTime         @default(now())
+  comandaId        String
+  comanda          Comanda          @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+
+  @@map("pagamentos")
+}
+
+model MovimentacaoEstoque {
+  id                  String            @id @default(cuid())
+  tipo                TipoMovimentacao
+  quantidade          Float
+  valorUnitario       Float?
+  valorTotal          Float?
+  motivo              String
+  documentoReferencia String?
+  criadaEm            DateTime          @default(now())
+  produtoId           String
+  produto             Produto           @relation(fields: [produtoId], references: [id])
+  usuarioId           String
+  usuario             Usuario           @relation(fields: [usuarioId], references: [id])
+  unidadeMedidaId     String
+  unidadeMedida       UnidadeMedida     @relation(fields: [unidadeMedidaId], references: [id])
+
+  @@map("movimentacoes_estoque")
+}
+
+model Fornecedor {
+  id           String        @id @default(cuid())
+  nome         String
+  nuit         String?
+  contato      String
+  telefone     String?
+  email        String?
+  endereco     String?
+  ativo        Boolean       @default(true)
+  criadoEm     DateTime      @default(now())
+  restauranteId String
+  restaurante  Restaurante   @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  ordensCompra OrdemCompra[]
+
+  @@map("fornecedores")
+}
+
+model OrdemCompra {
+  id                 String             @id @default(cuid())
+  numero             String             @unique
+  subtotal           Float              @default(0)
+  impostos           Float              @default(0)
+  total              Float              @default(0)
+  status             StatusOrdemCompra  @default(rascunho)
+  dataEntregaPrevista DateTime?
+  observacoes        String?
+  criadaEm           DateTime           @default(now())
+  atualizadaEm       DateTime           @updatedAt
+  fornecedorId       String
+  fornecedor         Fornecedor         @relation(fields: [fornecedorId], references: [id])
+  usuarioId          String
+  usuario            Usuario            @relation(fields: [usuarioId], references: [id])
+  restauranteId      String
+  restaurante        Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  itens              ItemOrdemCompra[]
+
+  @@map("ordens_compra")
+}
+
+model ItemOrdemCompra {
+  id                 String        @id @default(cuid())
+  produtoNome        String
+  quantidade         Float
+  precoUnitario      Float
+  precoTotal         Float
+  quantidadeRecebida Float?
+  ordemCompraId      String
+  ordemCompra        OrdemCompra   @relation(fields: [ordemCompraId], references: [id], onDelete: Cascade)
+  produtoId          String
+  produto            Produto       @relation(fields: [produtoId], references: [id])
+  unidadeMedidaId    String
+  unidadeMedida      UnidadeMedida @relation(fields: [unidadeMedidaId], references: [id])
+
+  @@map("itens_ordem_compra")
+}
+
+model Entrega {
+  id                String        @id @default(cuid())
+  numero            String        @unique
+  comandaNumero     String
+  clienteNome       String
+  clienteTelefone   String
+  entregadorNome    String
+  entregadorTelefone String
+  enderecoEntrega   String
+  observacoes       String?
+  taxaEntrega       Float         @default(0)
+  valorTotal        Float
+  tempoEstimado     Int
+  status            StatusEntrega @default(pendente)
+  dataEntrega       DateTime?
+  criadaEm          DateTime      @default(now())
+  atualizadaEm      DateTime      @updatedAt
+  comandaId         String
+  comanda           Comanda       @relation(fields: [comandaId], references: [id])
+  restauranteId     String
+  restaurante       Restaurante   @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@map("entregas")
+}
+
+model Entregador {
+  id           String      @id @default(cuid())
+  nome         String
+  telefone     String
+  veiculo      String
+  placa        String?
+  ativo        Boolean     @default(true)
+  restauranteId String
+  restaurante  Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@map("entregadores")
+}
+
+model LogAuditoria {
+  id             String            @id @default(cuid())
+  usuarioNome    String
+  acao           TipoAcaoAuditoria
+  entidade       String
+  entidadeId     String
+  detalhes       String
+  dadosAnteriores Json?
+  dadosNovos     Json?
+  ip             String?
+  userAgent      String?
+  criadoEm       DateTime          @default(now())
+  usuarioId      String
+  usuario        Usuario           @relation(fields: [usuarioId], references: [id])
+  restauranteId  String
+  restaurante    Restaurante       @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@map("logs_auditoria")
+}
+
+model TurnoFechamento {
+  id              String      @id @default(cuid())
+  dataAbertura    DateTime
+  dataFechamento  DateTime?
+  valorAbertura   Float
+  valorFechamento Float?
+  totalVendas     Float       @default(0)
+  totalDinheiro   Float       @default(0)
+  totalCartao     Float       @default(0)
+  totalOutros     Float       @default(0)
+  diferencaCaixa  Float?
+  observacoes     String?
+  status          StatusTurno @default(aberto)
+  usuarioId       String
+  usuario         Usuario     @relation(fields: [usuarioId], references: [id])
+  restauranteId   String
+  restaurante     Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@map("turnos_fechamento")
+}
+
+// Enums
+enum TipoImposto {
+  federal
+  estadual
+  municipal
+}
+
+enum PerfilUsuario {
+  admin
+  gestor
+  caixa
+  garcom
+  cozinha
+  estoquista
+}
+
+enum StatusMesa {
+  livre
+  ocupada
+  reservada
+  manutencao
+}
+
+enum TipoUnidadeMedida {
+  peso
+  volume
+  unidade
+}
+
+enum CanalVenda {
+  balcao
+  takeaway
+  delivery
+}
+
+enum TipoMenu {
+  cafe_manha
+  almoco
+  jantar
+  sobremesas
+  bebidas
+  petiscos
+  especial
+  criancas
+  vegetariano
+  executivo
+}
+
+enum StatusComanda {
+  aberta
+  enviada
+  preparando
+  pronta
+  entregue
+  paga
+  cancelada
+}
+
+enum StatusItemComanda {
+  pendente
+  preparando
+  pronto
+  entregue
+  cancelado
+}
+
+enum MetodoPagamento {
+  dinheiro
+  cartao_debito
+  cartao_credito
+  pix
+  mbway
+  vale_refeicao
+}
+
+enum StatusPagamento {
+  pendente
+  processando
+  aprovado
+  rejeitado
+  cancelado
+}
+
+enum TipoMovimentacao {
+  entrada
+  saida
+  ajuste
+  transferencia
+  perda
+}
+
+enum StatusOrdemCompra {
+  rascunho
+  enviada
+  confirmada
+  recebida
+  cancelada
+}
+
+enum StatusEntrega {
+  pendente
+  preparando
+  saiu_entrega
+  entregue
+  cancelada
+}
+
+enum TipoAcaoAuditoria {
+  criar
+  editar
+  excluir
+  login
+  logout
+  erro
+}
+
+enum StatusTurno {
+  aberto
+  fechado
+}
