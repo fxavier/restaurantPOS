@@ -53,7 +53,7 @@ export default function PaginaBackup() {
   const [loading, setLoading] = useState(true);
 
   // TODO: Replace with actual restaurant ID from session/context
-  const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+  const restauranteId = 'default-restaurant';
 
   useEffect(() => {
     const carregarDados = async () => {

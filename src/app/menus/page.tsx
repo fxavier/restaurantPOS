@@ -158,7 +158,7 @@ export default function PaginaMenus() {
 	const carregarProdutosECategorias = async () => {
 		try {
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 
 			const [produtosData, categoriasData] = await Promise.all([
 				apiDataService.obterProdutos(restauranteId),
@@ -177,7 +177,7 @@ export default function PaginaMenus() {
 		try {
 			setLoading(true);
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 			
 			// Build query parameters
 			const params = new URLSearchParams({
@@ -294,7 +294,7 @@ export default function PaginaMenus() {
 			if (imagemFile) {
 				setIsUploading(true);
 				// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 				const uploadResult = await uploadService.uploadMenuImage(
 					imagemFile,
 					restauranteId
@@ -310,7 +310,7 @@ export default function PaginaMenus() {
 			}
 
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 
 			const dadosMenu = {
 				nome,

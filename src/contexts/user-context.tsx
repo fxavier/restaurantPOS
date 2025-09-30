@@ -28,21 +28,37 @@ export function UserProvider({ children }: UserProviderProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Carregar dados do usuário do localStorage ou session
-    const carregarDadosUsuario = () => {
+    // Verificar se há token salvo e tentar restaurar sessão
+    const carregarDadosUsuario = async () => {
       try {
-        const usuarioSalvo = localStorage.getItem('usuario_logado');
+        const token = localStorage.getItem('auth_token');
         const restauranteSalvo = localStorage.getItem('restaurante_id');
         
-        if (usuarioSalvo) {
-          setUsuario(JSON.parse(usuarioSalvo));
+        if (token) {
+          // Tentar obter dados do usuário usando o token
+          try {
+            const response = await api.get('/auth/me', {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            });
+            
+            setUsuario(response);
+            if (response.restauranteId) {
+              setRestauranteIdState(response.restauranteId);
+            }
+          } catch (error) {
+            // Token inválido, remover
+            localStorage.removeItem('auth_token');
+            console.error('Token inválido:', error);
+          }
         }
         
-        if (restauranteSalvo) {
+        if (restauranteSalvo && !restauranteId) {
           setRestauranteIdState(restauranteSalvo);
-        } else {
+        } else if (!restauranteSalvo && !restauranteId) {
           // Usar ID padrão temporariamente
-          setRestauranteIdState('cmg3w1utw005j2gzkrott9zul');
+          setRestauranteIdState('default-restaurant');
         }
       } catch (error) {
         console.error('Erro ao carregar dados do usuário:', error);
@@ -70,60 +86,47 @@ export function UserProvider({ children }: UserProviderProps) {
       setLoading(true);
       setError(null);
 
-      // TODO: Implementar autenticação real
-      // Por enquanto, simular login com dados mock
-      const usuarioMock: Usuario = {
-        id: 'user-1',
-        nome: 'Administrador',
-        email: email,
-        username: email.split('@')[0],
-        senha: '',
-        telefone: '+258 84 123 4567',
-        perfil: 'admin' as PerfilUsuario,
-        permissoes: [
-          'dashboard',
-          'pos',
-          'kds',
-          'comandas',
-          'produtos',
-          'categorias',
-          'menus',
-          'mesas',
-          'clientes',
-          'estoque',
-          'fornecedores',
-          'compras',
-          'entregas',
-          'relatorios',
-          'utilizadores',
-          'configuracoes',
-          'auditoria',
-          'turnos',
-          'backup'
-        ],
-        ativo: true,
-        ultimoLogin: new Date().toISOString(),
-        criadoEm: new Date().toISOString(),
-        atualizadoEm: new Date().toISOString(),
-        restauranteId: restauranteId || 'cmg3w1utw005j2gzkrott9zul'
-      };
+      const response = await api.post('/auth/login', {
+        email,
+        senha
+      });
 
-      setUsuario(usuarioMock);
-      localStorage.setItem('usuario_logado', JSON.stringify(usuarioMock));
+      const { usuario: usuarioData, token } = response;
+      
+      setUsuario(usuarioData);
+      setRestauranteIdState(usuarioData.restauranteId);
+      
+      // Salvar token para requisições futuras
+      localStorage.setItem('auth_token', token);
+      localStorage.setItem('restaurante_id', usuarioData.restauranteId);
+      
+      // Configurar token padrão para o api client
+      api.setAuthToken(token);
       
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao fazer login:', error);
-      setError('Erro ao fazer login');
+      setError(error.response?.data?.error || 'Erro ao fazer login');
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
-    setUsuario(null);
-    localStorage.removeItem('usuario_logado');
+  const logout = async () => {
+    try {
+      // Chamar endpoint de logout
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    } finally {
+      // Limpar estado local independentemente do resultado da API
+      setUsuario(null);
+      setRestauranteIdState(null);
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('restaurante_id');
+      api.clearAuthToken();
+    }
   };
 
   const setRestauranteId = (id: string) => {

@@ -117,22 +117,25 @@ export default function PaginaCompras() {
 	const carregarDados = useCallback(async () => {
 		setLoading(true);
 		try {
+			const restauranteId = 'default-restaurant'; // TODO: Get from context
+			
 			// Load purchase orders with pagination
 			const { ordensCompra: ordens, pagination } =
 				await apiDataService.obterOrdensCompra({
 					page: currentPage,
 					limit: itemsPerPage,
 					status: filtroStatus !== 'todos' ? filtroStatus : undefined,
+					restauranteId,
 				});
 
 			setOrdensCompra(ordens);
 			setTotalPages(pagination.totalPages);
 			setTotalItems(pagination.total);
 
-			// Load suppliers and products
+			// Load suppliers and products for the specific restaurant
 			const [fornecedoresData, produtosData] = await Promise.all([
-				apiDataService.obterFornecedores(),
-				apiDataService.obterProdutos(),
+				apiDataService.obterFornecedores(restauranteId),
+				apiDataService.obterProdutos(restauranteId),
 			]);
 
 			setFornecedores(fornecedoresData.filter((f) => f.ativo));
@@ -279,7 +282,7 @@ export default function PaginaCompras() {
 		setSaving(true);
 		try {
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 			console.log('Restaurant ID:', restauranteId);
 
 			const ordemData = {

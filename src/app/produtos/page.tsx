@@ -126,7 +126,7 @@ export default function PaginaProdutos() {
 	const carregarCategorias = async () => {
 		try {
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 			const categoriasData = await apiDataService.obterCategorias(
 				restauranteId
 			);
@@ -141,7 +141,7 @@ export default function PaginaProdutos() {
 		try {
 			setLoading(true);
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 
 			// Build query parameters
 			const params = new URLSearchParams({
@@ -316,7 +316,7 @@ export default function PaginaProdutos() {
 			if (imagemFile) {
 				setIsUploading(true);
 				// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 				const uploadResult = await uploadService.uploadProductImage(
 					imagemFile,
 					restauranteId
@@ -332,7 +332,7 @@ export default function PaginaProdutos() {
 			}
 
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 
 			const dadosProduto = {
 				sku,

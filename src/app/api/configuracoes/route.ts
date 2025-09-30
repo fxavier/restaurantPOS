@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return createErrorResponse('restauranteId é obrigatório', 400)
     }
     
-    const configuracoes = await prisma.restaurante.findUnique({
+    let configuracoes = await prisma.restaurante.findUnique({
       where: { id: restauranteId },
       include: {
         impostos: {
@@ -23,14 +23,62 @@ export async function GET(request: NextRequest) {
       }
     })
     
+    // Se não existe, criar um restaurante padrão
     if (!configuracoes) {
-      return createErrorResponse('Restaurante não encontrado', 404)
+      // Gerar NUIT único baseado no restauranteId
+      const nuitHash = Math.abs(restauranteId.split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0));
+      const nuitUnico = String(nuitHash).padStart(9, '0').slice(0, 9);
+      
+      configuracoes = await prisma.restaurante.create({
+        data: {
+          id: restauranteId,
+          nome: 'Meu Restaurante',
+          endereco: 'Endereço do restaurante',
+          telefone: '+258 84 123 4567',
+          email: 'contato@restaurante.com',
+          nuit: nuitUnico,
+          taxaServico: 10,
+          moeda: 'MZN',
+          fusoHorario: 'Africa/Maputo',
+        },
+        include: {
+          impostos: {
+            orderBy: { nome: 'asc' }
+          },
+          horariosFuncionamento: {
+            orderBy: { diaSemana: 'asc' }
+          }
+        }
+      })
     }
     
     // Get units of measure (global settings)
-    const unidadesMedida = await prisma.unidadeMedida.findMany({
+    let unidadesMedida = await prisma.unidadeMedida.findMany({
       orderBy: { nome: 'asc' }
     })
+    
+    // Se não existem unidades de medida, criar algumas padrão
+    if (unidadesMedida.length === 0) {
+      const unidadesPadrao = [
+        { nome: 'Quilograma', sigla: 'kg', tipo: 'peso' as const, fatorConversao: 1.0 },
+        { nome: 'Grama', sigla: 'g', tipo: 'peso' as const, fatorConversao: 0.001 },
+        { nome: 'Litro', sigla: 'L', tipo: 'volume' as const, fatorConversao: 1.0 },
+        { nome: 'Mililitro', sigla: 'ml', tipo: 'volume' as const, fatorConversao: 0.001 },
+        { nome: 'Unidade', sigla: 'un', tipo: 'unidade' as const, fatorConversao: 1.0 },
+        { nome: 'Pacote', sigla: 'pct', tipo: 'unidade' as const, fatorConversao: 1.0 },
+      ]
+      
+      await prisma.unidadeMedida.createMany({
+        data: unidadesPadrao
+      })
+      
+      unidadesMedida = await prisma.unidadeMedida.findMany({
+        orderBy: { nome: 'asc' }
+      })
+    }
     
     return {
       restaurante: {
@@ -45,6 +93,8 @@ export async function GET(request: NextRequest) {
         taxaServico: configuracoes.taxaServico,
         moeda: configuracoes.moeda,
         fusoHorario: configuracoes.fusoHorario,
+        criadoEm: configuracoes.criadoEm.toISOString(),
+        atualizadoEm: configuracoes.atualizadoEm.toISOString(),
       },
       impostos: configuracoes.impostos,
       horariosFuncionamento: configuracoes.horariosFuncionamento,

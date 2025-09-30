@@ -82,7 +82,7 @@ export default function PaginaCategorias() {
 		try {
 			setLoading(true);
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 
 			// Build query parameters
 			const params = new URLSearchParams({
@@ -126,7 +126,7 @@ export default function PaginaCategorias() {
 		try {
 			setSaving(true);
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 			const categoriaData: Omit<Categoria, 'id'> = {
 				...formulario,
 				restauranteId,
@@ -183,7 +183,7 @@ export default function PaginaCategorias() {
 		try {
 			// Verificar se há produtos usando esta categoria
 			// TODO: Replace with actual restaurant ID from session/context
-			const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+			const restauranteId = 'default-restaurant';
 			const produtos = await apiDataService.obterProdutos(restauranteId);
 			const produtosUsandoCategoria = produtos.filter(
 				(p) => p.categoriaId === categoria.id

@@ -531,7 +531,7 @@ class ApiDataService {
   getDefaultRestauranteId(): string {
     // TODO: This should come from user session/context
     // For now, using the actual restaurant ID from the database
-    return 'cmg3w1utw005j2gzkrott9zul';
+    return 'default-restaurant';
   }
 
   /**

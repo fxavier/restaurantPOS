@@ -75,7 +75,7 @@ export default function PaginaComandas() {
   const carregarMesasEUsuarios = async () => {
     try {
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       const [mesasData, usuariosData] = await Promise.all([
         apiDataService.obterMesas(restauranteId),
         apiDataService.obterUsuarios(restauranteId),
@@ -92,7 +92,7 @@ export default function PaginaComandas() {
     try {
       setLoading(true);
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       
       // Build query parameters
       const params = new URLSearchParams({

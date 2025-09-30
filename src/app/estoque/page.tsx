@@ -86,7 +86,7 @@ export default function PaginaEstoque() {
 	const [totalItems, setTotalItems] = useState(0);
 
 	// TODO: Replace with actual restaurant ID from session/context
-	const RESTAURANT_ID = 'cmg3w1utw005j2gzkrott9zul';
+	const RESTAURANT_ID = 'default-restaurant';
 
 	// Formulário de movimentação
 	const [tipoMovimentacao, setTipoMovimentacao] =

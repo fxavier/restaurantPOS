@@ -89,7 +89,7 @@ export default function PaginaKDS() {
   const [totalItems, setTotalItems] = useState(0);
 
   // TODO: Replace with actual restaurant ID from session/context
-  const RESTAURANT_ID = 'cmg3w1utw005j2gzkrott9zul';
+  const RESTAURANT_ID = 'default-restaurant';
 
   const atualizarStatusItem = async (comandaId: string, itemId: string, novoStatus: StatusItemComanda) => {
     try {
@@ -191,13 +191,13 @@ export default function PaginaKDS() {
       const comandasKDS = comandasArray
         .filter((comanda: Comanda) => {
           // Only show comandas that have items that need kitchen attention
-          return comanda.itens.some((item: ItemComanda) => 
-            ['pendente', 'preparando', 'pronto'].includes(item.status)
+          return comanda && comanda.itens && comanda.itens.some((item: ItemComanda) => 
+            item && ['pendente', 'preparando', 'pronto'].includes(item.status)
           );
         })
         .map((comanda: Comanda) => {
           const agora = Date.now();
-          const criadaEm = new Date(comanda.criadaEm).getTime();
+          const criadaEm = comanda.criadaEm ? new Date(comanda.criadaEm).getTime() : agora;
           const tempoEspera = Math.floor((agora - criadaEm) / 1000 / 60);
           
           let prioridade: 'baixa' | 'media' | 'alta' | 'urgente' = 'baixa';
@@ -211,7 +211,7 @@ export default function PaginaKDS() {
             tempoEspera,
             prioridade,
             // Map items to show aberta/enviada comanda items as pendente in KDS
-            itens: comanda.itens.map((item: ItemComanda) => ({
+            itens: (comanda.itens || []).map((item: ItemComanda) => ({
               ...item,
               status: (comanda.status === 'aberta' || comanda.status === 'enviada') && item.status === 'pendente' 
                 ? 'pendente' 
@@ -219,9 +219,11 @@ export default function PaginaKDS() {
             }))
           };
         })
-        .sort((a: ItemKDS, b: ItemKDS) => {
+        .sort((a: ComandaKDS, b: ComandaKDS) => {
           // Ordenar por tempo de criação (mais antigos primeiro)
-          return new Date(a.comanda.criadaEm).getTime() - new Date(b.comanda.criadaEm).getTime();
+          const dateA = a.criadaEm ? new Date(a.criadaEm).getTime() : 0;
+          const dateB = b.criadaEm ? new Date(b.criadaEm).getTime() : 0;
+          return dateA - dateB;
         });
 
       setComandas(comandasKDS);

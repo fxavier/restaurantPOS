@@ -2,11 +2,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/api-client';
 import LayoutPrincipal from '@/components/layout/layout-principal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -26,27 +29,40 @@ import {
   Star,
   Gift
 } from 'lucide-react';
-import { ArmazenamentoLocal } from '@/lib/armazenamento-local';
 
 interface Cliente {
   id: string;
   nome: string;
-  telefone?: string;
-  email?: string;
-  endereco?: string;
-  dataNascimento?: string;
-  observacoes?: string;
-  totalPedidos: number;
-  totalGasto: number;
-  ultimoPedido?: string;
+  telefone: string;
+  email?: string | null;
+  dataNascimento?: string | null;
+  genero?: string | null;
+  endereco?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  pais?: string | null;
+  observacoes?: string | null;
+  ativo: boolean;
+  permitirFiado: boolean;
+  limiteFiado?: number | null;
+  saldoFiado?: number;
   criadoEm: string;
   atualizadoEm: string;
+  restauranteId: string;
+  comandas?: {
+    id: string;
+    numero: string;
+    total: number;
+    status: string;
+  }[];
 }
 
 export default function PaginaClientes() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [carregando, setCarregando] = useState(false);
+  const [carregandoInicial, setCarregandoInicial] = useState(true);
   const [termoBusca, setTermoBusca] = useState('');
+  const restauranteId = 'default-restaurant'; // TODO: Get from context
   
   // Modal de cliente
   const [modalAberto, setModalAberto] = useState(false);
@@ -55,49 +71,28 @@ export default function PaginaClientes() {
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
   const [endereco, setEndereco] = useState('');
+  const [bairro, setBairro] = useState('');
+  const [cidade, setCidade] = useState('');
+  const [pais, setPais] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
+  const [genero, setGenero] = useState('');
   const [observacoes, setObservacoes] = useState('');
+  const [permitirFiado, setPermitirFiado] = useState(false);
+  const [limiteFiado, setLimiteFiado] = useState('0');
 
   useEffect(() => {
     carregarClientes();
   }, []);
 
-  const carregarClientes = () => {
-    setCarregando(true);
-    
+  const carregarClientes = async () => {
     try {
-      // Usar método público salvarDados/obter através de uma chave específica
-      const clientesData = JSON.parse(localStorage.getItem('clientes') || '[]') as Cliente[];
-      const comandas = ArmazenamentoLocal.obterComandas();
-      
-      // Enriquecer dados dos clientes com estatísticas
-      const clientesEnriquecidos = clientesData.map(cliente => {
-        const pedidosCliente = comandas.filter(c => 
-          c.clienteNome === cliente.nome || c.clienteTelefone === cliente.telefone
-        );
-        
-        const totalPedidos = pedidosCliente.length;
-        const totalGasto = pedidosCliente
-          .filter(p => p.status === 'paga')
-          .reduce((total, p) => total + p.total, 0);
-        
-        const ultimoPedido = pedidosCliente.length > 0 
-          ? pedidosCliente.sort((a, b) => new Date(b.criadaEm).getTime() - new Date(a.criadaEm).getTime())[0].criadaEm
-          : undefined;
-        
-        return {
-          ...cliente,
-          totalPedidos,
-          totalGasto,
-          ultimoPedido
-        };
-      });
-      
-      setClientes(clientesEnriquecidos);
+      const data = await api.get(`/clientes?restauranteId=${restauranteId}`);
+      setClientes(data);
     } catch (error) {
+      console.error('Erro ao carregar clientes:', error);
       toast.error('Erro ao carregar clientes');
     } finally {
-      setCarregando(false);
+      setCarregandoInicial(false);
     }
   };
 
@@ -113,8 +108,14 @@ export default function PaginaClientes() {
     setTelefone(cliente.telefone || '');
     setEmail(cliente.email || '');
     setEndereco(cliente.endereco || '');
+    setBairro(cliente.bairro || '');
+    setCidade(cliente.cidade || '');
+    setPais(cliente.pais || '');
     setDataNascimento(cliente.dataNascimento || '');
+    setGenero(cliente.genero || '');
     setObservacoes(cliente.observacoes || '');
+    setPermitirFiado(cliente.permitirFiado || false);
+    setLimiteFiado(cliente.limiteFiado?.toString() || '0');
     setModalAberto(true);
   };
 
@@ -123,71 +124,76 @@ export default function PaginaClientes() {
     setTelefone('');
     setEmail('');
     setEndereco('');
+    setBairro('');
+    setCidade('');
+    setPais('');
     setDataNascimento('');
+    setGenero('');
     setObservacoes('');
+    setPermitirFiado(false);
+    setLimiteFiado('0');
   };
 
   const salvarCliente = async () => {
-    if (!nome.trim()) {
-      toast.error('Nome é obrigatório');
+    if (!nome.trim() || !telefone.trim()) {
+      toast.error('Nome e telefone são obrigatórios');
       return;
     }
 
+    setCarregando(true);
     try {
-      const clientesAtuais = JSON.parse(localStorage.getItem('clientes') || '[]') as Cliente[];
-      
+      const clienteData = {
+        nome: nome.trim(),
+        telefone: telefone.trim(),
+        email: email.trim() || null,
+        endereco: endereco.trim() || null,
+        bairro: bairro.trim() || null,
+        cidade: cidade.trim() || null,
+        pais: pais.trim() || null,
+        dataNascimento: dataNascimento || null,
+        genero: genero || null,
+        observacoes: observacoes.trim() || null,
+        permitirFiado,
+        limiteFiado: permitirFiado ? parseFloat(limiteFiado) : null,
+        restauranteId
+      };
+
       if (clienteEdicao) {
         // Atualizar cliente existente
-        const index = clientesAtuais.findIndex(c => c.id === clienteEdicao.id);
-        if (index !== -1) {
-          clientesAtuais[index] = {
-            ...clientesAtuais[index],
-            nome: nome.trim(),
-            telefone: telefone.trim() || undefined,
-            email: email.trim() || undefined,
-            endereco: endereco.trim() || undefined,
-            dataNascimento: dataNascimento || undefined,
-            observacoes: observacoes.trim() || undefined,
-            atualizadoEm: new Date().toISOString()
-          };
-        }
+        await api.put('/clientes', {
+          id: clienteEdicao.id,
+          ...clienteData
+        });
         toast.success('Cliente atualizado com sucesso!');
       } else {
         // Criar novo cliente
-        const novoCliente: Cliente = {
-          id: Date.now().toString(),
-          nome: nome.trim(),
-          telefone: telefone.trim() || undefined,
-          email: email.trim() || undefined,
-          endereco: endereco.trim() || undefined,
-          dataNascimento: dataNascimento || undefined,
-          observacoes: observacoes.trim() || undefined,
-          totalPedidos: 0,
-          totalGasto: 0,
-          criadoEm: new Date().toISOString(),
-          atualizadoEm: new Date().toISOString()
-        };
-        
-        clientesAtuais.push(novoCliente);
+        await api.post('/clientes', clienteData);
         toast.success('Cliente criado com sucesso!');
       }
 
-      localStorage.setItem('clientes', JSON.stringify(clientesAtuais));
       setModalAberto(false);
       carregarClientes();
-    } catch (error) {
-      toast.error('Erro ao salvar cliente');
+    } catch (error: any) {
+      console.error('Erro ao salvar cliente:', error);
+      toast.error(error.response?.data?.error || 'Erro ao salvar cliente');
+    } finally {
+      setCarregando(false);
     }
   };
 
-  const excluirCliente = (clienteId: string) => {
+  const excluirCliente = async (clienteId: string) => {
     if (confirm('Tem certeza que deseja excluir este cliente? Esta ação não pode ser desfeita.')) {
-      const clientesAtuais = JSON.parse(localStorage.getItem('clientes') || '[]') as Cliente[];
-      const clientesAtualizados = clientesAtuais.filter(c => c.id !== clienteId);
-      
-      localStorage.setItem('clientes', JSON.stringify(clientesAtualizados));
-      toast.success('Cliente excluído com sucesso!');
-      carregarClientes();
+      setCarregando(true);
+      try {
+        await api.delete(`/clientes?id=${clienteId}`);
+        toast.success('Cliente excluído com sucesso!');
+        carregarClientes();
+      } catch (error: any) {
+        console.error('Erro ao excluir cliente:', error);
+        toast.error(error.response?.data?.error || 'Erro ao excluir cliente');
+      } finally {
+        setCarregando(false);
+      }
     }
   };
 
@@ -201,10 +207,11 @@ export default function PaginaClientes() {
 
   // Estatísticas
   const totalClientes = clientes.length;
-  const clientesAtivos = clientes.filter(c => c.totalPedidos > 0).length;
-  const ticketMedioGeral = totalClientes > 0 
-    ? clientes.reduce((total, c) => total + c.totalGasto, 0) / totalClientes 
-    : 0;
+  const clientesAtivos = clientes.filter(c => c.ativo).length;
+  const clientesComFiado = clientes.filter(c => c.permitirFiado).length;
+  const totalFiadoPendente = clientes
+    .filter(c => c.permitirFiado && c.saldoFiado)
+    .reduce((total, c) => total + (c.saldoFiado || 0), 0);
 
   return (
     <LayoutPrincipal titulo="Gestão de Clientes">
@@ -246,8 +253,8 @@ export default function PaginaClientes() {
                   <Star className="w-6 h-6 text-purple-600" />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-muted-foreground">Ticket Médio</p>
-                  <p className="text-2xl font-bold">MT {ticketMedioGeral.toFixed(2)}</p>
+                  <p className="text-sm font-medium text-muted-foreground">Clientes com Fiado</p>
+                  <p className="text-2xl font-bold">{clientesComFiado}</p>
                 </div>
               </div>
             </CardContent>
@@ -281,7 +288,7 @@ export default function PaginaClientes() {
             </div>
 
             {/* Lista de Clientes */}
-            {carregando ? (
+            {carregandoInicial ? (
               <div className="text-center py-8">
                 <p>Carregando clientes...</p>
               </div>
@@ -297,9 +304,8 @@ export default function PaginaClientes() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>Contato</TableHead>
-                    <TableHead>Pedidos</TableHead>
-                    <TableHead>Total Gasto</TableHead>
-                    <TableHead>Último Pedido</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Fiado</TableHead>
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -334,21 +340,20 @@ export default function PaginaClientes() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={cliente.totalPedidos > 0 ? 'default' : 'secondary'}>
-                          {cliente.totalPedidos}
+                        <Badge variant={cliente.ativo ? 'default' : 'secondary'}>
+                          {cliente.ativo ? 'Ativo' : 'Inativo'}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-medium">
-                        MT {cliente.totalGasto.toFixed(2)}
-                      </TableCell>
                       <TableCell>
-                        {cliente.ultimoPedido ? (
-                          <div className="flex items-center text-sm">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            {new Date(cliente.ultimoPedido).toLocaleDateString('pt-PT')}
+                        {cliente.permitirFiado ? (
+                          <div>
+                            <Badge variant="outline">Permitido</Badge>
+                            {cliente.saldoFiado ? (
+                              <p className="text-sm mt-1">Saldo: MT {cliente.saldoFiado.toFixed(2)}</p>
+                            ) : null}
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">Nunca</span>
+                          <span className="text-muted-foreground">Não permitido</span>
                         )}
                       </TableCell>
                       <TableCell>
@@ -398,7 +403,7 @@ export default function PaginaClientes() {
                 </div>
 
                 <div>
-                  <Label htmlFor="telefone">Telefone</Label>
+                  <Label htmlFor="telefone">Telefone *</Label>
                   <Input
                     id="telefone"
                     value={telefone}
@@ -429,14 +434,86 @@ export default function PaginaClientes() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="genero">Gênero</Label>
+                  <Select value={genero} onValueChange={setGenero}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o gênero" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="masculino">Masculino</SelectItem>
+                      <SelectItem value="feminino">Feminino</SelectItem>
+                      <SelectItem value="outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="endereco">Endereço</Label>
                 <Input
                   id="endereco"
                   value={endereco}
                   onChange={(e) => setEndereco(e.target.value)}
-                  placeholder="Rua, número, bairro, cidade"
+                  placeholder="Rua, número"
                 />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="bairro">Bairro</Label>
+                  <Input
+                    id="bairro"
+                    value={bairro}
+                    onChange={(e) => setBairro(e.target.value)}
+                    placeholder="Bairro"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="cidade">Cidade</Label>
+                  <Input
+                    id="cidade"
+                    value={cidade}
+                    onChange={(e) => setCidade(e.target.value)}
+                    placeholder="Cidade"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="pais">País</Label>
+                  <Input
+                    id="pais"
+                    value={pais}
+                    onChange={(e) => setPais(e.target.value)}
+                    placeholder="País"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="permitirFiado"
+                    checked={permitirFiado}
+                    onCheckedChange={setPermitirFiado}
+                  />
+                  <Label htmlFor="permitirFiado">Permitir compras fiadas</Label>
+                </div>
+                
+                {permitirFiado && (
+                  <div>
+                    <Label htmlFor="limiteFiado">Limite de fiado (MT)</Label>
+                    <Input
+                      id="limiteFiado"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={limiteFiado}
+                      onChange={(e) => setLimiteFiado(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -454,8 +531,8 @@ export default function PaginaClientes() {
                 <Button variant="outline" onClick={() => setModalAberto(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={salvarCliente}>
-                  {clienteEdicao ? 'Atualizar' : 'Criar'} Cliente
+                <Button onClick={salvarCliente} disabled={carregando}>
+                  {carregando ? 'Salvando...' : (clienteEdicao ? 'Atualizar' : 'Criar')} Cliente
                 </Button>
               </div>
             </div>

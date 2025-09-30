@@ -86,7 +86,7 @@ export default function PaginaFornecedores() {
     try {
       setLoading(true);
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       
       // Build query parameters
       const params = new URLSearchParams({
@@ -140,7 +140,7 @@ export default function PaginaFornecedores() {
 
     try {
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       const fornecedorData = {
         ...formulario,
         restauranteId

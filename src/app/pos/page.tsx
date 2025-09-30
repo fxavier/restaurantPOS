@@ -103,7 +103,7 @@ export default function PaginaPOS() {
     setLoading(true);
     try {
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       
       const [produtosData, categoriasData, mesasData] = await Promise.all([
         apiDataService.obterProdutos(restauranteId),
@@ -213,7 +213,7 @@ export default function PaginaPOS() {
     setFinalizandoPedido(true);
     try {
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       
       // Atualizar status da mesa se for pedido de mesa
       if (formulario.canalVenda === 'takeaway' && formulario.mesaId) {
@@ -233,7 +233,7 @@ export default function PaginaPOS() {
         impostos: calcularImpostos(),
         desconto: 0, // No discount for basic POS
         total: calcularTotal(),
-        status: 'aberta' as StatusComanda,
+        status: 'enviada' as StatusComanda, // Changed from 'aberta' to 'enviada' so it appears immediately in KDS
         observacoes: formulario.observacoes || undefined,
         itens: carrinho.map(item => ({
           id: `item-${Date.now()}-${Math.random()}`,

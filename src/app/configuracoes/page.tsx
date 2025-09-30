@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { api } from '@/lib/api-client';
 import LayoutPrincipal from '@/components/layout/layout-principal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,118 +13,95 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import {
   Settings,
   Save,
-  RotateCcw,
-  Bell,
-  Shield,
-  Palette,
   Globe,
-  Printer,
-  CreditCard,
-  Mail,
-  Smartphone,
   Clock,
   DollarSign
 } from 'lucide-react';
 
-interface ConfiguracoesSistema {
-  // Configurações Gerais
-  nomeEmpresa: string;
-  emailEmpresa: string;
-  telefoneEmpresa: string;
-  enderecoEmpresa: string;
+interface ConfiguracoesRestaurante {
+  id: string;
+  nome: string;
+  endereco: string;
+  telefone: string;
+  email: string;
+  nuit?: string;
+  inscricaoEstadual?: string;
+  inscricaoMunicipal?: string;
+  taxaServico: number;
   moeda: string;
-  idioma: string;
   fusoHorario: string;
-
-  // Configurações de Vendas
-  taxaServicoBalcao: number;
-  taxaServicoDelivery: number;
-  tempoPreparoDefault: number;
-  permitirDesconto: boolean;
-  descontoMaximo: number;
-  
-  // Configurações de Impressão
-  impressoraComanda: string;
-  impressoraCozinha: string;
-  imprimirAutomatico: boolean;
-  
-  // Configurações de Notificação
-  notificacoesPush: boolean;
-  notificacoesEmail: boolean;
-  notificacoesSMS: boolean;
-  
-  // Configurações de Segurança
-  sessaoTimeout: number;
-  loginDoisFatores: boolean;
-  logAuditoria: boolean;
-  
-  // Configurações de Aparência
-  tema: 'claro' | 'escuro' | 'sistema';
-  corPrimaria: string;
-  logoEmpresa: string;
 }
 
-const configuracoesDefault: ConfiguracoesSistema = {
-  nomeEmpresa: 'Meu Restaurante',
-  emailEmpresa: 'contato@meurestaurante.com',
-  telefoneEmpresa: '+351 123 456 789',
-  enderecoEmpresa: 'Rua Principal, 123, Lisboa',
-  moeda: 'MZN',
-  idioma: 'pt-PT',
-  fusoHorario: 'Africa/Johannesburg',
-  
-  taxaServicoBalcao: 10,
-  taxaServicoDelivery: 0,
-  tempoPreparoDefault: 15,
-  permitirDesconto: true,
-  descontoMaximo: 20,
-  
-  impressoraComanda: '',
-  impressoraCozinha: '',
-  imprimirAutomatico: true,
-  
-  notificacoesPush: true,
-  notificacoesEmail: true,
-  notificacoesSMS: false,
-  
-  sessaoTimeout: 60,
-  loginDoisFatores: false,
-  logAuditoria: true,
-  
-  tema: 'sistema',
-  corPrimaria: '#3b82f6',
-  logoEmpresa: ''
-};
+interface Imposto {
+  id: string;
+  nome: string;
+  percentual: number;
+  tipo: 'servico' | 'produto' | 'outro';
+  ativo: boolean;
+}
+
+interface HorarioFuncionamento {
+  id: string;
+  diaSemana: number;
+  abertura: string;
+  fechamento: string;
+  ativo: boolean;
+}
+
+interface UnidadeMedida {
+  id: string;
+  nome: string;
+  simbolo: string;
+  tipo: 'peso' | 'volume' | 'unidade' | 'outro';
+  ativo: boolean;
+}
+
+interface ConfiguracoesCompletas {
+  restaurante: ConfiguracoesRestaurante;
+  impostos: Imposto[];
+  horariosFuncionamento: HorarioFuncionamento[];
+  unidadesMedida: UnidadeMedida[];
+}
+
 
 export default function PaginaConfiguracoes() {
-  const [configuracoes, setConfiguracoes] = useState<ConfiguracoesSistema>(configuracoesDefault);
+  const [configuracoes, setConfiguracoes] = useState<ConfiguracoesCompletas | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const [carregandoInicial, setCarregandoInicial] = useState(true);
   const [alteracoesPendentes, setAlteracoesPendentes] = useState(false);
+  const restauranteId = 'default-restaurant'; // TODO: Get from context
 
   useEffect(() => {
     carregarConfiguracoes();
   }, []);
 
-  const carregarConfiguracoes = () => {
+  const carregarConfiguracoes = async () => {
     try {
-      const configSalvas = localStorage.getItem('configuracoes_sistema');
-      if (configSalvas) {
-        setConfiguracoes({ ...configuracoesDefault, ...JSON.parse(configSalvas) });
-      }
+      const response = await api.get(`/configuracoes?restauranteId=${restauranteId}`);
+      setConfiguracoes(response);
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
       toast.error('Erro ao carregar configurações');
+    } finally {
+      setCarregandoInicial(false);
     }
   };
 
   const salvarConfiguracoes = async () => {
+    if (!configuracoes) return;
+    
     setCarregando(true);
     try {
-      localStorage.setItem('configuracoes_sistema', JSON.stringify(configuracoes));
+      await api.put(`/configuracoes?restauranteId=${restauranteId}`, {
+        ...configuracoes.restaurante,
+        impostos: configuracoes.impostos,
+        horariosFuncionamento: configuracoes.horariosFuncionamento
+      });
       setAlteracoesPendentes(false);
       toast.success('Configurações salvas com sucesso!');
     } catch (error) {
@@ -134,18 +112,43 @@ export default function PaginaConfiguracoes() {
     }
   };
 
-  const restaurarPadrao = () => {
-    if (confirm('Tem certeza que deseja restaurar as configurações padrão? Esta ação não pode ser desfeita.')) {
-      setConfiguracoes(configuracoesDefault);
-      setAlteracoesPendentes(true);
-      toast.success('Configurações restauradas para o padrão');
-    }
-  };
 
-  const atualizarConfiguracao = (chave: keyof ConfiguracoesSistema, valor: any) => {
-    setConfiguracoes(prev => ({ ...prev, [chave]: valor }));
+  const atualizarRestaurante = (chave: keyof ConfiguracoesRestaurante, valor: any) => {
+    if (!configuracoes) return;
+    setConfiguracoes(prev => ({
+      ...prev!,
+      restaurante: { ...prev!.restaurante, [chave]: valor }
+    }));
     setAlteracoesPendentes(true);
   };
+
+  if (carregandoInicial) {
+    return (
+      <LayoutPrincipal titulo="Configurações do Sistema">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Carregando configurações...</p>
+          </div>
+        </div>
+      </LayoutPrincipal>
+    );
+  }
+
+  if (!configuracoes) {
+    return (
+      <LayoutPrincipal titulo="Configurações do Sistema">
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <p className="text-muted-foreground">Erro ao carregar configurações. Por favor, tente novamente.</p>
+            <Button onClick={carregarConfiguracoes} className="mt-4">
+              Tentar Novamente
+            </Button>
+          </div>
+        </div>
+      </LayoutPrincipal>
+    );
+  }
 
   return (
     <LayoutPrincipal titulo="Configurações do Sistema">
@@ -159,10 +162,6 @@ export default function PaginaConfiguracoes() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={restaurarPadrao}>
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Restaurar Padrão
-            </Button>
             <Button 
               onClick={salvarConfiguracoes} 
               disabled={!alteracoesPendentes || carregando}
@@ -185,13 +184,11 @@ export default function PaginaConfiguracoes() {
         )}
 
         <Tabs defaultValue="geral" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="geral">Geral</TabsTrigger>
-            <TabsTrigger value="vendas">Vendas</TabsTrigger>
-            <TabsTrigger value="impressao">Impressão</TabsTrigger>
-            <TabsTrigger value="notificacoes">Notificações</TabsTrigger>
-            <TabsTrigger value="seguranca">Segurança</TabsTrigger>
-            <TabsTrigger value="aparencia">Aparência</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="geral">Informações Gerais</TabsTrigger>
+            <TabsTrigger value="impostos">Impostos</TabsTrigger>
+            <TabsTrigger value="horarios">Horários</TabsTrigger>
+            <TabsTrigger value="unidades">Unidades de Medida</TabsTrigger>
           </TabsList>
 
           {/* Configurações Gerais */}
@@ -206,38 +203,38 @@ export default function PaginaConfiguracoes() {
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="nomeEmpresa">Nome da Empresa</Label>
+                    <Label htmlFor="nomeEmpresa">Nome do Restaurante</Label>
                     <Input
                       id="nomeEmpresa"
-                      value={configuracoes.nomeEmpresa}
-                      onChange={(e) => atualizarConfiguracao('nomeEmpresa', e.target.value)}
-                      placeholder="Nome da sua empresa"
+                      value={configuracoes.restaurante.nome}
+                      onChange={(e) => atualizarRestaurante('nome', e.target.value)}
+                      placeholder="Nome do restaurante"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="emailEmpresa">Email da Empresa</Label>
+                    <Label htmlFor="emailEmpresa">Email</Label>
                     <Input
                       id="emailEmpresa"
                       type="email"
-                      value={configuracoes.emailEmpresa}
-                      onChange={(e) => atualizarConfiguracao('emailEmpresa', e.target.value)}
-                      placeholder="contato@empresa.com"
+                      value={configuracoes.restaurante.email}
+                      onChange={(e) => atualizarRestaurante('email', e.target.value)}
+                      placeholder="contato@restaurante.com"
                     />
                   </div>
                   <div>
                     <Label htmlFor="telefoneEmpresa">Telefone</Label>
                     <Input
                       id="telefoneEmpresa"
-                      value={configuracoes.telefoneEmpresa}
-                      onChange={(e) => atualizarConfiguracao('telefoneEmpresa', e.target.value)}
+                      value={configuracoes.restaurante.telefone}
+                      onChange={(e) => atualizarRestaurante('telefone', e.target.value)}
                       placeholder="+351 123 456 789"
                     />
                   </div>
                   <div>
                     <Label htmlFor="moeda">Moeda</Label>
                     <Select 
-                      value={configuracoes.moeda} 
-                      onValueChange={(value) => atualizarConfiguracao('moeda', value)}
+                      value={configuracoes.restaurante.moeda} 
+                      onValueChange={(value) => atualizarRestaurante('moeda', value)}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -256,9 +253,9 @@ export default function PaginaConfiguracoes() {
                   <Label htmlFor="enderecoEmpresa">Endereço</Label>
                   <Textarea
                     id="enderecoEmpresa"
-                    value={configuracoes.enderecoEmpresa}
-                    onChange={(e) => atualizarConfiguracao('enderecoEmpresa', e.target.value)}
-                    placeholder="Endereço completo da empresa"
+                    value={configuracoes.restaurante.endereco}
+                    onChange={(e) => atualizarRestaurante('endereco', e.target.value)}
+                    placeholder="Endereço completo do restaurante"
                     rows={3}
                   />
                 </div>
@@ -267,42 +264,65 @@ export default function PaginaConfiguracoes() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Configurações Regionais</CardTitle>
+                <CardTitle>Informações Fiscais e Taxa de Serviço</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="idioma">Idioma</Label>
-                    <Select 
-                      value={configuracoes.idioma} 
-                      onValueChange={(value) => atualizarConfiguracao('idioma', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pt-PT">Português (Portugal)</SelectItem>
-                        <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
-                        <SelectItem value="en-US">English (US)</SelectItem>
-                        <SelectItem value="es-ES">Español</SelectItem>
-                        <SelectItem value="fr-FR">Français</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="nuit">NUIT</Label>
+                    <Input
+                      id="nuit"
+                      value={configuracoes.restaurante.nuit || ''}
+                      onChange={(e) => atualizarRestaurante('nuit', e.target.value)}
+                      placeholder="Número Único de Identificação Tributária"
+                    />
                   </div>
+                  <div>
+                    <Label htmlFor="taxaServico">Taxa de Serviço (%)</Label>
+                    <Input
+                      id="taxaServico"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={configuracoes.restaurante.taxaServico}
+                      onChange={(e) => atualizarRestaurante('taxaServico', parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="inscricaoEstadual">Inscrição Estadual</Label>
+                    <Input
+                      id="inscricaoEstadual"
+                      value={configuracoes.restaurante.inscricaoEstadual || ''}
+                      onChange={(e) => atualizarRestaurante('inscricaoEstadual', e.target.value)}
+                      placeholder="Número da inscrição estadual"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="inscricaoMunicipal">Inscrição Municipal</Label>
+                    <Input
+                      id="inscricaoMunicipal"
+                      value={configuracoes.restaurante.inscricaoMunicipal || ''}
+                      onChange={(e) => atualizarRestaurante('inscricaoMunicipal', e.target.value)}
+                      placeholder="Número da inscrição municipal"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="fusoHorario">Fuso Horário</Label>
                     <Select 
-                      value={configuracoes.fusoHorario} 
-                      onValueChange={(value) => atualizarConfiguracao('fusoHorario', value)}
+                      value={configuracoes.restaurante.fusoHorario} 
+                      onValueChange={(value) => atualizarRestaurante('fusoHorario', value)}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="Africa/Maputo">África/Maputo</SelectItem>
+                        <SelectItem value="Africa/Johannesburg">África/Joanesburgo</SelectItem>
                         <SelectItem value="Europe/Lisbon">Europa/Lisboa</SelectItem>
                         <SelectItem value="America/Sao_Paulo">América/São Paulo</SelectItem>
-                        <SelectItem value="America/New_York">América/Nova York</SelectItem>
-                        <SelectItem value="Europe/London">Europa/Londres</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -311,286 +331,219 @@ export default function PaginaConfiguracoes() {
             </Card>
           </TabsContent>
 
-          {/* Configurações de Vendas */}
-          <TabsContent value="vendas" className="space-y-6">
+          {/* Configurações de Impostos */}
+          <TabsContent value="impostos" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <DollarSign className="w-5 h-5 mr-2" />
-                  Taxas e Preços
+                  Configuração de Impostos
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="taxaServicoBalcao">Taxa de Serviço - Balcão (%)</Label>
-                    <Input
-                      id="taxaServicoBalcao"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={configuracoes.taxaServicoBalcao}
-                      onChange={(e) => atualizarConfiguracao('taxaServicoBalcao', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="taxaServicoDelivery">Taxa de Serviço - Delivery (%)</Label>
-                    <Input
-                      id="taxaServicoDelivery"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={configuracoes.taxaServicoDelivery}
-                      onChange={(e) => atualizarConfiguracao('taxaServicoDelivery', parseFloat(e.target.value) || 0)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="tempoPreparoDefault">Tempo de Preparo Padrão (min)</Label>
-                    <Input
-                      id="tempoPreparoDefault"
-                      type="number"
-                      min="1"
-                      value={configuracoes.tempoPreparoDefault}
-                      onChange={(e) => atualizarConfiguracao('tempoPreparoDefault', parseInt(e.target.value) || 15)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="descontoMaximo">Desconto Máximo (%)</Label>
-                    <Input
-                      id="descontoMaximo"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={configuracoes.descontoMaximo}
-                      onChange={(e) => atualizarConfiguracao('descontoMaximo', parseFloat(e.target.value) || 0)}
-                      disabled={!configuracoes.permitirDesconto}
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="permitirDesconto"
-                    checked={configuracoes.permitirDesconto}
-                    onCheckedChange={(checked) => atualizarConfiguracao('permitirDesconto', checked)}
-                  />
-                  <Label htmlFor="permitirDesconto">Permitir aplicação de descontos</Label>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Configurações de Impressão */}
-          <TabsContent value="impressao" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Printer className="w-5 h-5 mr-2" />
-                  Configurações de Impressão
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="impressoraComanda">Impressora de Comandas</Label>
-                    <Input
-                      id="impressoraComanda"
-                      value={configuracoes.impressoraComanda}
-                      onChange={(e) => atualizarConfiguracao('impressoraComanda', e.target.value)}
-                      placeholder="Nome da impressora"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="impressoraCozinha">Impressora da Cozinha</Label>
-                    <Input
-                      id="impressoraCozinha"
-                      value={configuracoes.impressoraCozinha}
-                      onChange={(e) => atualizarConfiguracao('impressoraCozinha', e.target.value)}
-                      placeholder="Nome da impressora"
-                    />
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="imprimirAutomatico"
-                    checked={configuracoes.imprimirAutomatico}
-                    onCheckedChange={(checked) => atualizarConfiguracao('imprimirAutomatico', checked)}
-                  />
-                  <Label htmlFor="imprimirAutomatico">Imprimir automaticamente ao finalizar pedido</Label>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Configurações de Notificações */}
-          <TabsContent value="notificacoes" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Bell className="w-5 h-5 mr-2" />
-                  Notificações
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Notificações Push</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receber notificações no navegador
-                      </p>
+                  {configuracoes.impostos.map((imposto, index) => (
+                    <div key={imposto.id} className="flex items-center gap-4 p-4 border rounded-lg">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <Input
+                          value={imposto.nome}
+                          placeholder="Nome do imposto"
+                          onChange={(e) => {
+                            const novosImpostos = [...configuracoes.impostos];
+                            novosImpostos[index] = { ...imposto, nome: e.target.value };
+                            setConfiguracoes(prev => ({ ...prev!, impostos: novosImpostos }));
+                            setAlteracoesPendentes(true);
+                          }}
+                        />
+                        <Input
+                          type="number"
+                          value={imposto.percentual}
+                          placeholder="Percentual"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          onChange={(e) => {
+                            const novosImpostos = [...configuracoes.impostos];
+                            novosImpostos[index] = { ...imposto, percentual: parseFloat(e.target.value) || 0 };
+                            setConfiguracoes(prev => ({ ...prev!, impostos: novosImpostos }));
+                            setAlteracoesPendentes(true);
+                          }}
+                        />
+                        <Select
+                          value={imposto.tipo}
+                          onValueChange={(value: 'servico' | 'produto' | 'outro') => {
+                            const novosImpostos = [...configuracoes.impostos];
+                            novosImpostos[index] = { ...imposto, tipo: value };
+                            setConfiguracoes(prev => ({ ...prev!, impostos: novosImpostos }));
+                            setAlteracoesPendentes(true);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="servico">Serviço</SelectItem>
+                            <SelectItem value="produto">Produto</SelectItem>
+                            <SelectItem value="outro">Outro</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={imposto.ativo}
+                            onCheckedChange={(checked) => {
+                              const novosImpostos = [...configuracoes.impostos];
+                              novosImpostos[index] = { ...imposto, ativo: checked };
+                              setConfiguracoes(prev => ({ ...prev!, impostos: novosImpostos }));
+                              setAlteracoesPendentes(true);
+                            }}
+                          />
+                          <Label>Ativo</Label>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          const novosImpostos = configuracoes.impostos.filter((_, i) => i !== index);
+                          setConfiguracoes(prev => ({ ...prev!, impostos: novosImpostos }));
+                          setAlteracoesPendentes(true);
+                        }}
+                      >
+                        ×
+                      </Button>
                     </div>
-                    <Switch
-                      checked={configuracoes.notificacoesPush}
-                      onCheckedChange={(checked) => atualizarConfiguracao('notificacoesPush', checked)}
-                    />
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Notificações por Email</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receber notificações por email
-                      </p>
-                    </div>
-                    <Switch
-                      checked={configuracoes.notificacoesEmail}
-                      onCheckedChange={(checked) => atualizarConfiguracao('notificacoesEmail', checked)}
-                    />
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Notificações por SMS</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Receber notificações por SMS
-                      </p>
-                    </div>
-                    <Switch
-                      checked={configuracoes.notificacoesSMS}
-                      onCheckedChange={(checked) => atualizarConfiguracao('notificacoesSMS', checked)}
-                    />
-                  </div>
+                  ))}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const novoImposto: Imposto = {
+                        id: Date.now().toString(),
+                        nome: '',
+                        percentual: 0,
+                        tipo: 'produto',
+                        ativo: true
+                      };
+                      setConfiguracoes(prev => ({
+                        ...prev!,
+                        impostos: [...prev!.impostos, novoImposto]
+                      }));
+                      setAlteracoesPendentes(true);
+                    }}
+                  >
+                    Adicionar Imposto
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Configurações de Segurança */}
-          <TabsContent value="seguranca" className="space-y-6">
+          {/* Configurações de Horários */}
+          <TabsContent value="horarios" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Shield className="w-5 h-5 mr-2" />
-                  Segurança
+                  <Clock className="w-5 h-5 mr-2" />
+                  Horários de Funcionamento
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="sessaoTimeout">Timeout da Sessão (minutos)</Label>
-                  <Input
-                    id="sessaoTimeout"
-                    type="number"
-                    min="5"
-                    max="480"
-                    value={configuracoes.sessaoTimeout}
-                    onChange={(e) => atualizarConfiguracao('sessaoTimeout', parseInt(e.target.value) || 60)}
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Tempo em minutos antes da sessão expirar automaticamente
-                  </p>
-                </div>
-                
-                <Separator />
-                
+              <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Autenticação de Dois Fatores</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Adicionar uma camada extra de segurança ao login
-                      </p>
-                    </div>
-                    <Switch
-                      checked={configuracoes.loginDoisFatores}
-                      onCheckedChange={(checked) => atualizarConfiguracao('loginDoisFatores', checked)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Log de Auditoria</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Registrar todas as ações dos usuários no sistema
-                      </p>
-                    </div>
-                    <Switch
-                      checked={configuracoes.logAuditoria}
-                      onCheckedChange={(checked) => atualizarConfiguracao('logAuditoria', checked)}
-                    />
-                  </div>
+                  {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((dia, diaSemana) => {
+                    const horario = configuracoes.horariosFuncionamento.find(h => h.diaSemana === diaSemana) || {
+                      id: Date.now().toString(),
+                      diaSemana,
+                      abertura: '09:00',
+                      fechamento: '22:00',
+                      ativo: true
+                    };
+                    
+                    return (
+                      <div key={diaSemana} className="flex items-center gap-4 p-4 border rounded-lg">
+                        <div className="w-24 font-medium">{dia}</div>
+                        <div className="flex-1 flex items-center gap-4">
+                          <Input
+                            type="time"
+                            value={horario.abertura}
+                            onChange={(e) => {
+                              const novosHorarios = [...configuracoes.horariosFuncionamento];
+                              const index = novosHorarios.findIndex(h => h.diaSemana === diaSemana);
+                              if (index >= 0) {
+                                novosHorarios[index] = { ...horario, abertura: e.target.value };
+                              } else {
+                                novosHorarios.push({ ...horario, abertura: e.target.value });
+                              }
+                              setConfiguracoes(prev => ({ ...prev!, horariosFuncionamento: novosHorarios }));
+                              setAlteracoesPendentes(true);
+                            }}
+                            disabled={!horario.ativo}
+                          />
+                          <span>às</span>
+                          <Input
+                            type="time"
+                            value={horario.fechamento}
+                            onChange={(e) => {
+                              const novosHorarios = [...configuracoes.horariosFuncionamento];
+                              const index = novosHorarios.findIndex(h => h.diaSemana === diaSemana);
+                              if (index >= 0) {
+                                novosHorarios[index] = { ...horario, fechamento: e.target.value };
+                              } else {
+                                novosHorarios.push({ ...horario, fechamento: e.target.value });
+                              }
+                              setConfiguracoes(prev => ({ ...prev!, horariosFuncionamento: novosHorarios }));
+                              setAlteracoesPendentes(true);
+                            }}
+                            disabled={!horario.ativo}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={horario.ativo}
+                            onCheckedChange={(checked) => {
+                              const novosHorarios = [...configuracoes.horariosFuncionamento];
+                              const index = novosHorarios.findIndex(h => h.diaSemana === diaSemana);
+                              if (index >= 0) {
+                                novosHorarios[index] = { ...horario, ativo: checked };
+                              } else {
+                                novosHorarios.push({ ...horario, ativo: checked });
+                              }
+                              setConfiguracoes(prev => ({ ...prev!, horariosFuncionamento: novosHorarios }));
+                              setAlteracoesPendentes(true);
+                            }}
+                          />
+                          <Label>Aberto</Label>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Configurações de Aparência */}
-          <TabsContent value="aparencia" className="space-y-6">
+          {/* Unidades de Medida */}
+          <TabsContent value="unidades" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Palette className="w-5 h-5 mr-2" />
-                  Aparência
-                </CardTitle>
+                <CardTitle>Unidades de Medida</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  As unidades de medida são configurações globais do sistema
+                </p>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="tema">Tema</Label>
-                    <Select 
-                      value={configuracoes.tema} 
-                      onValueChange={(value: 'claro' | 'escuro' | 'sistema') => atualizarConfiguracao('tema', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="claro">Claro</SelectItem>
-                        <SelectItem value="escuro">Escuro</SelectItem>
-                        <SelectItem value="sistema">Seguir Sistema</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="corPrimaria">Cor Primária</Label>
-                    <Input
-                      id="corPrimaria"
-                      type="color"
-                      value={configuracoes.corPrimaria}
-                      onChange={(e) => atualizarConfiguracao('corPrimaria', e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <Label htmlFor="logoEmpresa">URL do Logo da Empresa</Label>
-                  <Input
-                    id="logoEmpresa"
-                    value={configuracoes.logoEmpresa}
-                    onChange={(e) => atualizarConfiguracao('logoEmpresa', e.target.value)}
-                    placeholder="https://exemplo.com/logo.png"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    URL da imagem do logo que aparecerá no sistema
-                  </p>
+              <CardContent>
+                <div className="space-y-4">
+                  {configuracoes.unidadesMedida.map((unidade) => (
+                    <div key={unidade.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div>
+                        <div className="font-medium">{unidade.nome}</div>
+                        <div className="text-sm text-muted-foreground">
+                          Símbolo: {unidade.simbolo} • Tipo: {unidade.tipo}
+                        </div>
+                      </div>
+                      <Badge variant={unidade.ativo ? 'default' : 'secondary'}>
+                        {unidade.ativo ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

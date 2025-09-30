@@ -24,6 +24,7 @@ model Restaurante {
 
   // Relacionamentos
   usuarios            Usuario[]
+  clientes            Cliente[]
   mesas               Mesa[]
   categorias          Categoria[]
   produtos            Produto[]
@@ -39,6 +40,34 @@ model Restaurante {
   horariosFuncionamento HorarioFuncionamento[]
 
   @@map("restaurantes")
+}
+
+model Cliente {
+  id              String    @id @default(cuid())
+  nome            String
+  telefone        String
+  email           String?
+  dataNascimento  DateTime?
+  genero          String?
+  endereco        String?
+  bairro          String?
+  cidade          String?
+  pais            String?
+  observacoes     String?
+  ativo           Boolean   @default(true)
+  permitirFiado   Boolean   @default(false)
+  limiteFiado     Float?
+  saldoFiado      Float     @default(0)
+  criadoEm        DateTime  @default(now())
+  atualizadoEm    DateTime  @updatedAt
+  restauranteId   String
+  restaurante     Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  // Relacionamentos
+  comandas        Comanda[]
+
+  @@unique([telefone, restauranteId])
+  @@map("clientes")
 }
 
 model ImpostoConfig {
@@ -259,6 +288,8 @@ model Comanda {
   finalizadaEm    DateTime?
   mesaId          String?
   mesa            Mesa?         @relation(fields: [mesaId], references: [id])
+  clienteId       String?
+  cliente         Cliente?      @relation(fields: [clienteId], references: [id])
   garcomId        String
   garcom          Usuario       @relation(fields: [garcomId], references: [id])
   restauranteId   String

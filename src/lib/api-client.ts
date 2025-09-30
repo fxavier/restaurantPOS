@@ -6,6 +6,14 @@ interface ApiResponse<T = any> {
   errorCode?: string;
 }
 
+// Token de autenticação global
+let authToken: string | null = null;
+
+// Inicializar token do localStorage se existir
+if (typeof window !== 'undefined') {
+  authToken = localStorage.getItem('auth_token');
+}
+
 class ApiError extends Error {
   constructor(public status: number, public errorMessage: string, public errorCode?: string) {
     super(errorMessage);
@@ -18,11 +26,18 @@ async function apiRequest<T = any>(
   options?: RequestInit,
 ): Promise<T> {
   try {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    };
+    
+    // Adicionar token de autorização se existir
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+    
     const response = await fetch(`/api${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
       ...options,
     });
 
@@ -107,6 +122,23 @@ export const api = {
 
   deleteUploadedImage: (imageUrl: string) =>
     apiRequest(`/produtos/upload-imagem?url=${encodeURIComponent(imageUrl)}`, { method: 'DELETE' }),
+    
+  // Métodos de autenticação
+  setAuthToken: (token: string) => {
+    authToken = token;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auth_token', token);
+    }
+  },
+  
+  clearAuthToken: () => {
+    authToken = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_token');
+    }
+  },
+  
+  getAuthToken: () => authToken,
 };
 
 export { ApiError };

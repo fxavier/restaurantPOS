@@ -71,7 +71,7 @@ export default function PaginaMesas() {
     try {
       setLoading(true);
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
       
       // Build query parameters
       const params = new URLSearchParams({
@@ -164,7 +164,7 @@ export default function PaginaMesas() {
     try {
       setSaving(true);
       // TODO: Replace with actual restaurant ID from session/context
-      const restauranteId = 'cmg3w1utw005j2gzkrott9zul';
+      const restauranteId = 'default-restaurant';
 
       if (mesaEditando) {
         // Atualizar mesa existente
